@@ -1,7 +1,8 @@
 import { app, load, save, flush, replaceState, resetLogs } from './store.js';
-import { ui, setRender, render, toast, go, today, armed, copyText, saveFile } from './ui.js';
+import { ui, setRender, render, toast, go, today, armed, copyText, saveFile, celebrate } from './ui.js';
+import { progress, isRecord, BADGES, XP } from './game.js';
 import { num, r1, addDays, esc, rng } from './util.js';
-import { EX, planWeek, calWeek, getRec, exRec, exName, touched } from './training.js';
+import { EX, SESSIONS, planWeek, calWeek, getRec, exRec, exName, touched, doneInWeek, sessionSummary, dayKind } from './training.js';
 import { evaluate, applyDelta, weightAvg } from './adapt.js';
 import { generateCycle, cycleFor, recipe, allRecipes, slotRid, isHidden, isBig, CYCLE_DAYS } from './mealplan.js';
 import { statusText, recipePrompt, parseImport, QUESTIONS } from './status.js';
@@ -99,8 +100,18 @@ const ACT = {
   recipe: t => go({ tab: 'recipe', id: t.dataset.id, n: 1 }),
   portions: t => { ui.route.n = +t.dataset.n; render(); },
   logday: t => { const d = +t.dataset.d, t0 = today(); ui.logDate = d === 0 ? null : addDays(dailyKey(), d); if (ui.logDate && ui.logDate >= t0) ui.logDate = null; render(); },
-  dailyseg: t => { daily()[t.dataset.f] = t.dataset.v; save(); render(); },
-  dailytick: t => { const d = daily(); d[t.dataset.f] = !d[t.dataset.f]; save(); render(); },
+  dailyseg: t => { daily()[t.dataset.f] = t.dataset.v; if (t.dataset.f === 'food') ui.ringOpen = null; save(); if (t.dataset.v === 'yes' && !ui.logDate) toast(`+${XP.ring} XP`); render(); },
+  dailytick: t => { const d = daily(); d[t.dataset.f] = !d[t.dataset.f]; if (t.dataset.f === 'posture') ui.ringOpen = null; save(); if (d[t.dataset.f]) toast(`+${XP.ring} XP`); render(); },
+  ring: t => {
+    const id = t.dataset.id, d = S().daily[today()] || {};
+    ui.logDate = null;
+    if (id === 'train') { const k = dayKind(today()); if (SESSIONS[k]) go({ tab: 'session', sid: k, date: today(), from: 'today' }); return; }
+    if (id === 'creatine') { const dd = daily(today()); dd.creatine = !dd.creatine; save(); if (dd.creatine) toast(`+${XP.ring} XP`); render(); return; }
+    ui.ringOpen = ui.ringOpen === id ? null : id; render();
+    if (id === 'weigh') requestAnimationFrame(() => document.getElementById('rw')?.focus());
+  },
+  weighsave: t => { const v = num(document.getElementById(t.dataset.src)?.value); if (v == null || v < 30 || v > 250) { toast('Type your weight in kg'); return; } daily(today()).weight = String(v); ui.ringOpen = null; save(); toast(`Saved ${v} kg · +${XP.ring} XP`); render(); },
+  cooked: t => { const d = daily(today()); d.cooked = true; d.cookedBig = t.dataset.big === '1'; save(); celebrate({ kicker: d.cookedBig ? 'Big cook night' : 'Meal prep', title: 'Boxes ready', sub: 'Food sorted for the next days. That is how the plan works.', xp: d.cookedBig ? XP.bigCook : XP.cook }); render(); },
   addact: () => { const m = num($('#actM').value); if (!m) { toast('Type the minutes'); return; } const d = daily(); (d.acts = d.acts || []).push({ t: $('#actT').value, min: Math.round(m) }); save(); render(); },
   delact: t => { daily().acts.splice(+t.dataset.i, 1); save(); render(); },
   addoff: t => { const [n, kcal] = EAT_OUT[+t.dataset.i]; const d = daily(); (d.offplan = d.offplan || []).push({ n, kcal }); if (!d.food) d.food = 'partly'; save(); toast('Logged. Get back on plan at the next meal.'); render(); },
@@ -117,14 +128,22 @@ const ACT = {
       const row = t.closest('.set'), rIn = row.querySelector('[data-set$="|r"]'), wIn = row.querySelector('[data-set$="|w"]');
       set.r = rIn.value; set.w = wIn.value;
       if (!num(set.r)) { toast('Type how many reps you did first'); rIn.focus(); return; }
+      const record = isRecord(s, id, x.alt, date, set.w, set.r, i, sid);
       set.done = true;
       startTimer(EX[id].rest, exName(id, x.alt));
+      if (record) celebrate({ kicker: 'New record', title: exName(id, x.alt), sub: `${set.w ? set.w + ' kg' : 'Bodyweight'} × ${set.r}. Stronger than ever on this lift.`, xp: XP.pr, big: true });
     } else set.done = false;
     save(); render();
   },
   swap: t => { ui.openSwap = ui.openSwap === t.dataset.id ? null : t.dataset.id; render(); },
   pickalt: t => { const s = S(), { sid, date } = ui.route; const x = exRec(s, getRec(s, date, sid, true), t.dataset.id, Math.max(1, planWeek(s, date))); x.alt = +t.dataset.i; ui.openSwap = null; save(); render(); },
-  finish: () => { const s = S(), rec = getRec(s, ui.route.date, ui.route.sid, true); if (!touched(rec)) return; rec.done = true; rec.finishedAt = new Date().toISOString(); save(); $('#timer').classList.remove('show'); toast('Session saved'); render(); },
+  finish: () => {
+    const s = S(), { date, sid } = ui.route, rec = getRec(s, date, sid, true); if (!touched(rec)) return;
+    rec.done = true; rec.finishedAt = new Date().toISOString(); save(); $('#timer').classList.remove('show');
+    const n = doneInWeek(s, calWeek(s, date)).size;
+    celebrate({ kicker: 'Session done', title: SESSIONS[sid].n, sub: `${sessionSummary(rec)} ${n >= 4 ? 'Perfect week: 4 of 4. 🔥' : `${n} of 4 this week.`}`, xp: XP.session });
+    render();
+  },
   unfinish: () => { const rec = getRec(S(), ui.route.date, ui.route.sid, true); rec.done = false; save(); render(); },
   timeradd: () => { timerEnd += 30000; if (!timerInt) timerInt = setInterval(tick, 250); tick(); },
   timerstop: () => { clearInterval(timerInt); timerInt = null; $('#timer').classList.remove('show'); },
@@ -195,17 +214,29 @@ const ACT = {
   reset: t => { if (!armed(t, 'Tap again to erase everything')) return; resetLogs(); ui.ciResult = null; toast('Erased'); render(); }
 };
 
+// After anything changes: celebrate level-ups and new badges (once each).
+function checkProgress(silent) {
+  const s = S(), p = progress(s, today());
+  s.game = s.game || {};
+  const g = s.game, first = g.level == null;
+  g.badges = g.badges || {};
+  if (!first && !silent && p.lv.level > g.level) celebrate({ kicker: 'Level up', title: `Level ${p.lv.level}`, sub: `${p.lv.name}. ${p.lv.need} XP to the next one.`, big: true });
+  for (const id of p.earned) if (!g.badges[id]) { g.badges[id] = today(); const b = BADGES.find(x => x.id === id); if (!first && !silent && b) celebrate({ kicker: 'Badge unlocked', title: `${b.icon} ${b.n}`, sub: b.d }); }
+  if (g.level !== p.lv.level || first) { g.level = p.lv.level; save(); }
+}
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-act]'); if (!t || t.disabled) return;
   const f = ACT[t.dataset.act]; if (!f) return;
   e.preventDefault();
   try { const r = f(t, e); if (r?.catch) r.catch(err => { console.error(err); toast('Something went wrong: ' + err.message); }); }
   catch (err) { console.error(err); toast('Something went wrong: ' + err.message); }
+  try { checkProgress(); } catch (err) { console.error(err); }
 });
+document.getElementById('celebrate').addEventListener('click', () => celebrate.next());
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.dataset.set) { const [id, i, f] = t.dataset.set.split('|'); writeSet(id, +i, f, t.value); save(); }
-  else if (t.dataset.daily) { daily()[t.dataset.daily] = t.value; save(); }
+  else if (t.dataset.daily) { daily()[t.dataset.daily] = t.value; save(); try { checkProgress(); } catch (err) { /* ignore */ } }
   else if (t.dataset.baseline) { const s = S(); s.baseline[t.dataset.baseline] = num(t.value); s.baseline.date = today(); save(); }
   else if (t.dataset.ui) ui[t.dataset.ui] = t.value;
 });
@@ -232,6 +263,7 @@ window.addEventListener('popstate', e => { ui.route = e.state?.route || { tab: '
 /* ---------- Boot ---------- */
 load();
 try { history.replaceState({ route: ui.route }, ''); } catch (e) { /* ignore */ }
+try { checkProgress(true); } catch (e) { console.error(e); }
 render(false);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 // Re-render after midnight so "today" moves on if the app stays open.

@@ -1,8 +1,10 @@
 import { app } from '../store.js';
-import { ui, today, seg, check, stat } from '../ui.js';
-import { esc, addDays, diffDays, dow, fmtDate, fmtShort, DOWL, num } from '../util.js';
-import { SESSIONS, SESSION_IDS, planWeek, calWeek, isPaused, phaseFor, blockOf, weekInBlock, dayKind, doneInWeek, touched, sessionSummary, finisher } from '../training.js';
-import { cycleFor, dayPlan, flexFactor, isCookDay, MEAL_LABEL, shopDayOnOrAfter, cookSessions } from '../mealplan.js';
+import { ui, today, seg, stat } from '../ui.js';
+import { esc, addDays, diffDays, dow, fmtDate, fmtShort, DOWL, num, r1 } from '../util.js';
+import { SESSIONS, planWeek, calWeek, isPaused, phaseFor, weekInBlock, dayKind, doneInWeek, touched, DAYPLAN } from '../training.js';
+import { cycleFor, dayPlan, flexFactor, MEAL_LABEL } from '../mealplan.js';
+import { rings, ringsClosed, progress, goalProgress, cookToday, WEIGH_DAYS } from '../game.js';
+import { weightAvg } from '../adapt.js';
 
 export const EAT_OUT = [
   ['Grilled chicken (half, skin off) + salad + small rice', 650],
@@ -13,111 +15,115 @@ export const EAT_OUT = [
   ['Broasted 4-piece with fries and bun', 1200]
 ];
 export const ACTS = [['football', 'Football'], ['swim', 'Swim'], ['run', 'Run'], ['walk', 'Walk'], ['other', 'Other']];
+export const PREP = [['inbody', 'First InBody done'], ['creatine', 'Buy creatine monohydrate'], ['tape', 'Buy a tape measure'], ['plan', 'Make your 2-week meal plan'], ['boxes', 'Buy 10–12 meal-prep boxes'], ['photos', 'Take front, side, back and neck photos'], ['reminders', 'Add reminders to your calendar'], ['bag', 'Pack the gym bag Saturday night']];
+export const dailyKey = () => ui.logDate || today();
 
-export function postureCard(S, k) {
+/* ---------- Next up: the one thing to do now ---------- */
+function nextUp(S, t, hr) {
+  const w = planWeek(S, t), cw = calWeek(S, t), d = S.daily[t] || {}, kind = dayKind(t);
+  const card = (kicker, title, sub, buttons, extra = '') => `<section class="next"><div class="kicker">${kicker}</div><h1 class="nexttitle ${title.length > 22 ? 'long' : ''}">${title}</h1>${sub ? `<p class="nextsub">${sub}</p>` : ''}${extra}<div class="nextbtns">${buttons}</div></section>`;
+  const btn = (label, attrs, primary = true) => `<button class="btn ${primary ? 'primary' : ''} block-w" ${attrs}>${label}</button>`;
+  if (w < 1) {
+    const p = S.prep || {}, left = PREP.filter(([id]) => !(id === 'plan' ? (S.meal.cycles || []).length : p[id]));
+    const n = diffDays(t, S.profile.startDate);
+    if (!left.length) return card('Ready', `${n} day${n === 1 ? '' : 's'} to go`, `Week 1 starts ${fmtDate(S.profile.startDate)}, Lower A at 6am.`, btn('Preview Sunday\'s session', `data-act="opensession" data-sid="LA" data-date="${S.profile.startDate}"`, false));
+    const [id, label] = left[0];
+    return card(`Get set up · ${PREP.length - left.length}/${PREP.length} · ${n} day${n === 1 ? '' : 's'} to go`, esc(label), '', id === 'plan' ? btn('Make my meal plan', 'data-act="food" data-sub="plan"') : id === 'photos' ? btn('Take photos', 'data-act="go" data-tab="progress"') + btn('Done', `data-act="prep" data-id="${id}"`, false) : id === 'reminders' ? btn('Set reminders', 'data-act="go" data-tab="settings"') + btn('Done', `data-act="prep" data-id="${id}"`, false) : btn('Done ✓', `data-act="prep" data-id="${id}"`));
+  }
+  if (isPaused(S, cw)) return card('Paused week', 'Rest up', 'The plan waits for you. Protein, sleep, walk.', btn('I\'m back, unpause', `data-act="pause" data-cw="${cw}"`, false));
+  if (WEIGH_DAYS.includes(dow(t)) && hr < 12 && num(d.weight) == null) return card('Weigh-in day', 'Step on the scale', 'After the toilet, before food or water.', `<div class="row"><input class="t big" id="nw" inputmode="decimal" placeholder="kg" aria-label="Weight in kg"><button class="btn primary" data-act="weighsave" data-src="nw">Save</button></div>`);
+  if (SESSIONS[kind]) {
+    const rec = S.logs[t]?.[kind];
+    if (!rec?.done && hr < 20) {
+      const ph = phaseFor(w);
+      return card(`${hr >= 9 ? 'Evening slot' : '6am'} · Week ${weekInBlock(w)} · ${ph.n}`, SESSIONS[kind].n, SESSIONS[kind].focus, btn(touched(rec) ? 'Continue session' : 'Start session', `data-act="opensession" data-sid="${kind}" data-date="${t}"`));
+    }
+  }
+  if (kind === 'THU' && hr < 12) {
+    const dn = doneInWeek(S, cw), missed = ['UA', 'UB'].find(x => !dn.has(x));
+    if (missed && !S.logs[t]?.[missed]?.done) return card('Make-up option', `Do ${SESSIONS[missed].n}`, 'You missed it this week. Do it this morning instead of the swim. Skip the cold jacuzzi after.', btn(`Start ${SESSIONS[missed].n}`, `data-act="opensession" data-sid="${missed}" data-date="${t}"`));
+  }
+  const c = cycleFor(S, t), soon = cycleFor(S, addDays(t, 3));
+  if (!c || (dow(t) === S.profile.shopDay && !soon)) return card('Food', 'Plan the next 2 weeks', 'Then take the shopping list with you.', btn('Make my meal plan', 'data-act="food" data-sub="plan"'));
+  if (c.start === t && hr < 21) return card('Shopping day', 'Shop for 2 weeks', 'Everything is on the list, with Arabic names.', btn('Open shopping list', 'data-act="food" data-sub="shop"'));
+  const ck = cookToday(S, t);
+  if (ck && !d.cooked && hr >= 13) return card(ck.big ? '🔥 Big cook night' : 'Cook tonight', esc(ck.dishes.map(x => x.r.n).join(' + ')), `About ${ck.minutes} min · ${ck.dishes.reduce((a, x) => a + x.portions, 0)} portions`, btn('Open cook plan', 'data-act="food" data-sub="cook"') + btn('Done cooking ✓', `data-act="cooked" data-big="${ck.big ? 1 : 0}"`, false));
+  const lastCi = S.checkins[S.checkins.length - 1];
+  if ([6, 0].includes(dow(t)) && diffDays(S.profile.startDate, t) >= 7 && (!lastCi || diffDays(lastCi.date, t) >= 6)) return card('Weekly', 'Check-in', 'Measure your waist, then let the app read your week. One minute.', btn('Start check-in', 'data-act="go" data-tab="progress"'));
+  const r = rings(S, t).filter(x => !x.done);
+  if (r.length) return card('Today', `${r.length} ring${r.length > 1 ? 's' : ''} left`, r.map(x => x.label).join(' · '), '');
+  const tm = addDays(t, 1), tk = DAYPLAN[dow(tm)];
+  return card('Day complete 🔥', 'All done', SESSIONS[tk] ? `Tomorrow: ${SESSIONS[tk].n} at 6am. Bed by 10:30.` : 'Enjoy the evening.', '');
+}
+
+/* ---------- Rings ---------- */
+function ringsRow(S, k) {
+  const list = rings(S, k), R = 26, C = 2 * Math.PI * R;
+  const circle = x => `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" class="rbg"/><circle cx="32" cy="32" r="${R}" class="rfg" stroke-dasharray="${C}" stroke-dashoffset="${x.done ? 0 : x.half ? C / 2 : C}" transform="rotate(-90 32 32)"/></svg>`;
+  let out = `<div class="rings">${list.map(x => `<button class="ring ${x.done ? 'done' : ''}" data-act="ring" data-id="${x.id}" aria-pressed="${x.done}" aria-label="${x.label}">${circle(x)}<span class="ricon">${x.done ? '✓' : x.icon}</span><span class="rlabel">${x.label}</span></button>`).join('')}</div>`;
   const d = S.daily[k] || {};
-  return `<details class="block"><summary>Posture, 3 minutes a day ${d.posture ? '<span class="status ok">done</span>' : ''}</summary><p class="small muted">For the rounded shoulders, forward head and the bump at the base of your neck. After the gym, or at your desk mid-afternoon.</p>
-  ${stat('Chin tucks: pull your head straight back (double chin), hold 2 s', '2×10')}
-  ${stat('Doorway chest stretch, forearms on the frame, lean through', '2×30 s')}
-  ${stat('Upper-back extension over a chair back or bench edge', '10 reps')}
-  ${stat('Wall angels: back, head and arms against the wall, slide arms up', '10 reps')}
-  <p class="small" style="margin:8px 0 0">Raise your laptop screen to eye level and hold your phone up instead of looking down. That matters as much as the exercises.</p>
-  <p class="small muted" style="margin:8px 0 0">See a doctor if the bump grows, hurts, or you get numbness, tingling into the arms, or headaches.</p></details>`;
-}
-
-function dailyLog(S) {
-  const t = today(), k = ui.logDate || t, d = S.daily[k] || {};
-  const isToday = k === t;
-  const acts = d.acts || [], off = d.offplan || [];
-  return `<div class="block" id="dailylog"><div class="row between"><button class="btn sm ghost" data-act="logday" data-d="-1" aria-label="Previous day">‹</button><h3 style="margin:0;text-align:center">${isToday ? 'Today\'s log' : fmtDate(k)}</h3><button class="btn sm ghost" data-act="logday" data-d="1" ${isToday ? 'disabled' : ''} aria-label="Next day">›</button></div>
-  ${isToday ? '' : '<p class="small muted" style="text-align:center;margin:4px 0 0">Filling in a past day. <button class="linkbtn" data-act="logday" data-d="0">Back to today</button></p>'}
-  <div class="grid3" style="margin-top:6px"><div><label class="f" for="dw">Weight (kg)</label><input class="t" id="dw" inputmode="decimal" data-daily="weight" value="${esc(d.weight || '')}" placeholder="86.6"></div>
-  <div><label class="f" for="ds">Steps</label><input class="t" id="ds" inputmode="numeric" data-daily="steps" value="${esc(d.steps || '')}" placeholder="8000"></div>
-  <div><label class="f" for="dsl">Sleep (h)</label><input class="t" id="dsl" inputmode="decimal" data-daily="sleep" value="${esc(d.sleep || '')}" placeholder="7"></div></div>
-  <p class="small muted" style="margin:6px 0 0">Weigh in the morning after the toilet, before food. Steps and sleep from the Health app.</p>
-  <label class="f">Ate to plan?</label>${seg('dailyseg', 'food', d.food, [['yes', 'Yes'], ['partly', 'Partly'], ['no', 'No']])}
-  <div style="margin-top:8px">${check('dailytick', d.creatine, 'Creatine 5 g', 'data-f="creatine"')}${check('dailytick', d.posture, 'Posture routine (3 min)', 'data-f="posture"')}</div>
-  <details${acts.length ? ' open' : ''}><summary>Football, swim, run ${acts.length ? `<span class="status ok">${acts.map(a => a.min + ' min').join(', ')}</span>` : ''}</summary>
-    ${acts.map((a, i) => `<div class="stat"><span>${esc((ACTS.find(x => x[0] === a.t) || ['', a.t])[1])}</span><b>${a.min} min <button class="linkbtn" data-act="delact" data-i="${i}">remove</button></b></div>`).join('')}
-    <div class="row" style="margin-top:6px"><select class="t" id="actT" style="flex:1">${ACTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select><input class="t" id="actM" inputmode="numeric" placeholder="min" style="width:80px"><button class="btn" data-act="addact">Add</button></div></details>
-  <details${off.length ? ' open' : ''}><summary>Ate out or off plan ${off.length ? `<span class="status miss">~${off.reduce((a, o) => a + o.kcal, 0)} kcal</span>` : ''}</summary>
-    ${off.map((o, i) => `<div class="stat"><span>${esc(o.n)}</span><b>~${o.kcal} <button class="linkbtn" data-act="deloff" data-i="${i}">remove</button></b></div>`).join('')}
-    <p class="small muted">Tap what you had. It replaces one planned meal, it isn't a disaster.</p>
-    <div class="row wrapflex">${EAT_OUT.map(([n, kc], i) => `<button class="chip" data-act="addoff" data-i="${i}">${esc(n.split(':')[0].split('(')[0].split('+')[0].trim())} · ${kc}</button>`).join('')}</div></details>
-  </div>`;
-}
-
-function foodToday(S, t) {
-  const c = cycleFor(S, t);
-  const nextShop = shopDayOnOrAfter(S, t);
-  if (!c) return `<div class="block alert"><h3>No meal plan for this week yet</h3><p class="small">Make your 2-week plan and shopping list. Shop ${nextShop === t ? 'today' : fmtDate(nextShop)}.</p><button class="btn primary block-w" data-act="food" data-sub="plan">Make my 2-week plan</button></div>`;
-  const f = flexFactor(S, c), dp = dayPlan(S, c, t, f);
-  let out = '';
-  if (dow(t) === S.profile.shopDay && !cycleFor(S, addDays(t, 2))) out += `<div class="block alert"><h3>Shopping day</h3><p class="small">Your current plan ends soon. Make the next 2 weeks and take the list with you.</p><button class="btn primary block-w" data-act="food" data-sub="plan">Plan the next 2 weeks</button></div>`;
-  else if (c.start === t) out += `<div class="block alert"><h3>Shopping day</h3><p class="small">Everything for the next 2 weeks is on the list.</p><button class="btn primary block-w" data-act="food" data-sub="shop">Open the shopping list</button></div>`;
-  if (isCookDay(S, t)) { const s = cookSessions(S, c, f).find(x => x.date === t); if (s && s.dishes.length) out += `<div class="block alert"><h3>${s.big ? 'Big cook night tonight' : 'Cook tonight'}</h3><p class="small">${s.dishes.map(x => `${esc(x.r.n)} × ${x.portions}`).join(', ')}${s.boil ? `, and boil ${s.boil} eggs` : ''}. About ${s.minutes} min.</p><button class="btn primary block-w" data-act="food" data-sub="cook">Open tonight's cook plan</button></div>`; }
-  if (!dp) return out + `<div class="block flat"><p class="small" style="margin:0"><strong>Away day.</strong> Eat the protein first, go easy on rice and sweets. One weekend can't ruin a week.</p></div>`;
-  out += `<div class="block"><div class="row between"><h3>Today's food</h3><span class="small muted">${Math.round(dp.t.kcal)} kcal · ${Math.round(dp.t.p)} g protein</span></div>
-  ${dp.meals.map(m => `<button class="mealrow" data-act="recipe" data-id="${m.r.id}"><span class="small muted">${MEAL_LABEL[m.meal]}</span><span><strong>${esc(m.r.n)}</strong>${m.cookDate ? ` <span class="small muted">· box from ${DOWL[dow(m.cookDate)]}</span>` : ''}</span><span class="small muted">${Math.round(m.tot.kcal)} kcal</span></button>`).join('')}
-  </div>`;
+  if (ui.ringOpen === 'food') out += `<div class="ringpanel"><span class="small muted">Ate to plan today?</span>${seg('dailyseg', 'food', d.food, [['yes', 'Yes'], ['partly', 'Partly'], ['no', 'No']])}</div>`;
+  if (ui.ringOpen === 'weigh') out += `<div class="ringpanel"><div class="row"><input class="t" id="rw" inputmode="decimal" placeholder="Morning weight, kg" value="${esc(d.weight || '')}"><button class="btn primary" data-act="weighsave" data-src="rw">Save</button></div></div>`;
+  if (ui.ringOpen === 'posture') out += `<div class="ringpanel small">${postureSteps()}<button class="btn primary block-w" style="margin-top:8px" data-act="dailytick" data-f="posture">${d.posture ? 'Undo' : 'Done ✓'}</button></div>`;
   return out;
+}
+const postureSteps = () => `<div class="stat"><span>Chin tucks, hold 2 s</span><b>2×10</b></div><div class="stat"><span>Doorway chest stretch</span><b>2×30 s</b></div><div class="stat"><span>Upper-back extension over a chair</span><b>10</b></div><div class="stat"><span>Wall angels</span><b>10</b></div>`;
+
+/* ---------- Header: level, XP, streaks, goal ---------- */
+function levelBar(p) {
+  return `<button class="lvl" data-act="go" data-tab="progress" aria-label="Level and badges"><span class="lvnum">LV ${p.lv.level}</span><span class="lvname">${p.lv.name}</span><span class="xpbar"><i style="width:${Math.round(p.lv.into / p.lv.need * 100)}%"></i></span><span class="lvxp">${p.lv.into}/${p.lv.need} XP</span></button>`;
+}
+function streakStrip(st) {
+  const tile = (v, l, icon) => `<div class="streak ${v ? 'on' : ''}"><b>${icon} ${v}</b><span>${l}</span></div>`;
+  return `<div class="streaks">${tile(st.weeks, 'perfect weeks', '🔥')}${tile(st.food, 'on-plan days', '🍽️')}${tile(st.creatine, 'creatine days', '⚡')}${tile(st.weigh, 'weigh-ins', '⚖️')}</div>`;
+}
+function goalCard(S, t) {
+  const g = goalProgress(S, t);
+  return `<div class="goal"><div class="row between"><span class="small muted">Goal</span><span class="small"><b>${g.cur != null ? r1(g.cur) : g.start}</b> → ${g.goal} kg</span></div><div class="goalbar"><i style="width:${Math.round(g.pct * 100)}%"></i></div><div class="row between"><span class="tiny muted">${g.start} kg start</span><span class="tiny muted">${g.cur != null ? `${Math.max(0, g.left)} kg to go` : 'weigh in to start tracking'}</span></div></div>`;
+}
+function weekSummary(S, t) {
+  if (![5, 6].includes(dow(t))) return '';
+  const cw = calWeek(S, t); if (cw < 1) return '';
+  const n = doneInWeek(S, cw).size, a = weightAvg(S, t, 0), b = weightAvg(S, t, 1);
+  let food = 0, days = 0; for (let i = 0; i < 7; i++) { const v = S.daily[addDays(t, -i)]?.food; if (v) { days++; if (v === 'yes') food++; } }
+  return `<div class="block summary"><div class="kicker">This week</div><div class="sumgrid"><div><b>${n}/4</b><span>sessions</span></div><div><b>${a != null && b != null ? (a - b > 0 ? '+' : '') + r1(a - b) : '–'}</b><span>kg vs last week</span></div><div><b>${days ? food + '/' + days : '–'}</b><span>days on plan</span></div></div></div>`;
+}
+
+/* ---------- Secondary: food today and extra logging ---------- */
+function foodToday(S, t) {
+  const c = cycleFor(S, t); if (!c) return '';
+  const dp = dayPlan(S, c, t, flexFactor(S, c)); if (!dp) return '';
+  return `<details class="block"><summary>🍽️ Today's food <span class="small muted">· ${Math.round(dp.t.kcal)} kcal · ${Math.round(dp.t.p)} g protein</span></summary>
+  ${dp.meals.map(m => `<button class="mealrow" data-act="recipe" data-id="${m.r.id}"><span class="small muted">${MEAL_LABEL[m.meal]}</span><span><strong>${esc(m.r.n)}</strong></span><span class="small muted">${Math.round(m.tot.kcal)}</span></button>`).join('')}</details>`;
+}
+function moreLog(S) {
+  const t = today(), k = ui.logDate || t, d = S.daily[k] || {}, isToday = k === t;
+  const acts = d.acts || [], off = d.offplan || [];
+  return `<details class="block" id="dailylog" ${ui.logDate ? 'open' : ''}><summary>＋ More logging <span class="small muted">· steps, sleep, football, meals out, past days</span></summary>
+  <div class="row between" style="margin-top:8px"><button class="btn sm ghost" data-act="logday" data-d="-1" aria-label="Previous day">‹</button><strong>${isToday ? 'Today' : `${fmtDate(k)} <button class="linkbtn" data-act="logday" data-d="0">back to today</button>`}</strong><button class="btn sm ghost" data-act="logday" data-d="1" ${isToday ? 'disabled' : ''} aria-label="Next day">›</button></div>
+  ${isToday ? '' : `<div class="ringpanel" style="margin-top:8px">${seg('dailyseg', 'food', d.food, [['yes', 'Ate to plan'], ['partly', 'Partly'], ['no', 'No']])}<div class="row wrapflex" style="margin-top:8px"><button class="chip ${d.creatine ? 'on' : ''}" data-act="dailytick" data-f="creatine">⚡ Creatine</button><button class="chip ${d.posture ? 'on' : ''}" data-act="dailytick" data-f="posture">🧍 Posture</button></div></div>`}
+  <div class="grid3" style="margin-top:6px"><div><label class="f" for="dw">Weight</label><input class="t" id="dw" inputmode="decimal" data-daily="weight" value="${esc(d.weight || '')}" placeholder="kg"></div>
+  <div><label class="f" for="ds">Steps</label><input class="t" id="ds" inputmode="numeric" data-daily="steps" value="${esc(d.steps || '')}" placeholder="8000"></div>
+  <div><label class="f" for="dsl">Sleep</label><input class="t" id="dsl" inputmode="decimal" data-daily="sleep" value="${esc(d.sleep || '')}" placeholder="h"></div></div>
+  <label class="f">Football, swim, run</label>
+  ${acts.map((a, i) => `<div class="stat"><span>${esc((ACTS.find(x => x[0] === a.t) || ['', a.t])[1])}</span><b>${a.min} min <button class="linkbtn" data-act="delact" data-i="${i}">remove</button></b></div>`).join('')}
+  <div class="row"><select class="t" id="actT" style="flex:1">${ACTS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select><input class="t" id="actM" inputmode="numeric" placeholder="min" style="width:80px"><button class="btn" data-act="addact">Add</button></div>
+  <label class="f">Ate out</label>
+  ${off.map((o, i) => `<div class="stat"><span>${esc(o.n)}</span><b>~${o.kcal} <button class="linkbtn" data-act="deloff" data-i="${i}">remove</button></b></div>`).join('')}
+  <div class="row wrapflex">${EAT_OUT.map(([n, kc], i) => `<button class="chip" data-act="addoff" data-i="${i}">${esc(n.split(':')[0].split('(')[0].split('+')[0].trim())} · ${kc}</button>`).join('')}</div>
+  </details>`;
 }
 
 export function vToday() {
-  const S = app.S, t = today(), w = planWeek(S, t), cw = calWeek(S, t), hr = new Date().getHours();
-  let out = '';
-  // Banners
-  const lastCi = S.checkins[S.checkins.length - 1];
-  if (w >= 1 && diffDays(S.profile.startDate, t) >= 7 && (!lastCi || diffDays(lastCi.date, t) >= 7)) out += `<button class="banner" data-act="go" data-tab="progress"><strong>Weekly check-in due.</strong> Measure your waist and tap here. One minute.</button>`;
-  const hasData = Object.keys(S.daily).length + Object.keys(S.logs).length > 3;
-  if (hasData && (!S.lastBackup || diffDays(S.lastBackup, t) >= 14)) out += `<button class="banner" data-act="backup"><strong>Back up your data.</strong> It only lives on this phone. Tap to save a backup file.</button>`;
-
-  if (w < 1) {
-    const p = S.prep || {};
-    const n = diffDays(t, S.profile.startDate);
-    const items = [['inbody', 'First InBody done (86.6 kg, 24.5% body fat)'], ['creatine', 'Buy creatine monohydrate (check the label, seal and expiry)'], ['tape', 'Buy a tape measure'], ['boxes', 'Buy 10–12 meal-prep boxes (in the shopping list)'], ['photos', 'Take front, side, back and neck photos (Progress > Photos)'], ['rhr', 'Check your resting heart rate in the Health app'], ['reminders', 'Add the reminders to your calendar (Settings)'], ['plan', 'Make the 2-week meal plan and shop Saturday'], ['bag', 'Pack the gym bag Saturday night']];
-    out += `<h1 class="day">${n} day${n === 1 ? '' : 's'} to go</h1><p class="muted">Week 1 starts ${fmtDate(S.profile.startDate)} with Lower A at 6am. Until then, get set up.</p>
-    <div class="block"><h3>Before you start</h3>${items.map(([id, l]) => check('prep', p[id], esc(l), `data-id="${id}"`)).join('')}
-    <label class="f" for="bw">Starting waist at the belly button (cm)</label><div class="row"><input class="t" id="bw" inputmode="decimal" data-baseline="waist" value="${esc(S.baseline.waist ?? '')}" placeholder="e.g. 96"></div>
-    <p class="small muted" style="margin:6px 0 0">Relaxed, after breathing out, tape level. This is how the app tells fat loss from a stall later.</p></div>
-    <button class="btn block-w" data-act="opensession" data-sid="LA" data-date="${S.profile.startDate}">Preview Sunday's session</button>`;
-    return out + foodToday(S, t) + dailyLog(S) + postureCard(S, ui.logDate || t);
-  }
-  if (isPaused(S, cw)) {
-    out += `<h1 class="day">Paused week</h1><p class="muted">Sick, travelling or life. The plan waits for you and picks up next week where you left off.</p>
-    <div class="block"><p>Keep protein up, walk, sleep. If you feel up to it, an easy swim or walk is fine.</p><button class="btn block-w" data-act="pause" data-cw="${cw}">I'm back, unpause this week</button></div>`;
-    return out + foodToday(S, t) + dailyLog(S) + postureCard(S, ui.logDate || t);
-  }
-  const ph = phaseFor(w), kind = dayKind(t), wb = weekInBlock(w);
-  if (wb === 1 && blockOf(w) > 1 && dow(t) === 0) out += `<div class="block alert"><h3>Block ${blockOf(w)} starts today</h3><p class="small">Same structure, your weights carry over. Compare your InBody, photos and run test from week 12 with week 1 in Progress.</p></div>`;
-  out += `<p class="small muted" style="margin:0">${DOWL[dow(t)]}, ${fmtShort(t)}</p>`;
-  const recsToday = S.logs[t] || {};
-  if (SESSIONS[kind]) {
-    const s = SESSIONS[kind], rec = recsToday[kind], done = rec?.done;
-    out += `<h1 class="day">${s.n}</h1><p class="muted" style="margin-bottom:8px">${s.focus}</p><span class="phase">${ph.n}</span>
-    <div class="block">${done ? `<p><strong>Session done.</strong> ${sessionSummary(rec)}</p><button class="btn block-w" data-act="opensession" data-sid="${kind}" data-date="${t}">Review session</button>` :
-      `<p>${ph.rir}. ${ph.note}</p>${hr >= 9 ? `<div class="note"><strong>Missed the 6am slot?</strong> Do it at 6–7pm today. Same session, nothing else changes.</div>` : `<p class="small muted">6am slot. Your 20-minute brisk walk there is the warm-up. About 60–70 minutes in the gym.</p>`}
-      <button class="btn primary block-w" data-act="opensession" data-sid="${kind}" data-date="${t}">${touched(rec) ? 'Continue session' : 'I\'m at the gym, start'}</button>`}</div>`;
-    if (s.finisher && !done) { const f = finisher(w); out += `<p class="small muted">Then: ${esc(f.n)}.</p>`; }
-    out += `<div class="block flat"><p class="small" style="margin:0"><strong>Eating before 6am:</strong> training empty is fine. If you feel weak, a banana or 2–3 dates with a glass of laban before you leave.</p></div>`;
-  } else if (kind === 'THU') {
-    const dn = doneInWeek(S, cw), missedU = ['UA', 'UB'].filter(x => !dn.has(x)), missedL = ['LA', 'LB'].filter(x => !dn.has(x));
-    out += `<h1 class="day">Feel-good day</h1><p class="muted">No lifting. Football tonight.</p>
-    <div class="block"><h3>Optional morning session</h3><p>Easy swim 15–20 minutes, light jog on the track for 10, some mobility. Sauna, steam and the cold jacuzzi are all fine today.</p><p class="small muted">Keep it easy. The goal is to arrive at football fresh. Log the football in today's log.</p></div>`;
-    if (missedU.length) out += `<div class="block alert"><h3>Make-up option</h3><p>You missed ${missedU.map(x => SESSIONS[x].n).join(' and ')} this week. Do ${SESSIONS[missedU[0]].n} this morning instead of the swim. Skip the cold jacuzzi after it.</p><button class="btn primary block-w" data-act="opensession" data-sid="${missedU[0]}" data-date="${t}">${touched(recsToday[missedU[0]]) ? 'Continue' : 'Start'} ${SESSIONS[missedU[0]].n}</button></div>`;
-    else if (missedL.length) out += `<div class="block flat"><p class="small" style="margin:0">You missed ${missedL.map(x => SESSIONS[x].n).join(' and ')}. Let it go. Football tonight covers your legs, and heavy legs before a match is how hamstrings get pulled.</p></div>`;
-    else out += `<div class="block flat"><p class="small" style="margin:0">All four sessions done this week. That's the whole game.</p></div>`;
-  } else {
-    out += `<h1 class="day">Rest day</h1><p class="muted">No gym. Walk when you can.</p>
-    <div class="block"><h3>Weekend in Makkah</h3><p>Big family or friends' meals are fine. Eat the protein first, go easy on rice and sweets, don't try to "make up" for it on Sunday by starving.</p></div>`;
-  }
-  // Other sessions logged today (e.g. a make-up)
-  const extra = SESSION_IDS.filter(x => x !== kind && recsToday[x] && touched(recsToday[x]) && !(kind === 'THU'));
-  for (const x of extra) out += `<button class="btn block-w" style="margin-top:8px" data-act="opensession" data-sid="${x}" data-date="${t}">${recsToday[x].done ? 'Review' : 'Continue'} ${SESSIONS[x].n} (make-up)</button>`;
-  const tomorrow = dow(addDays(t, 1));
-  if (hr >= 20 && [0, 1, 2, 3].includes(tomorrow)) out += `<div class="note"><strong>Training at 6am tomorrow.</strong> Aim to be asleep by 10:30–11.</div>`;
-  return out + foodToday(S, t) + dailyLog(S) + postureCard(S, ui.logDate || t);
+  const S = app.S, t = today(), hr = new Date().getHours(), p = progress(S, t);
+  const rc = ringsClosed(S, t);
+  let out = levelBar(p) + nextUp(S, t, hr);
+  if (rc.total) out += `<div class="sectionhead"><span>Today's rings</span><span class="muted">${rc.done}/${rc.total}</span></div>` + ringsRow(S, t);
+  out += streakStrip(p.st) + goalCard(S, t) + weekSummary(S, t);
+  const lastBackup = S.lastBackup, hasData = Object.keys(S.daily).length + Object.keys(S.logs).length > 3;
+  if (hasData && (!lastBackup || diffDays(lastBackup, t) >= 14)) out += `<button class="banner" data-act="backup"><strong>Back up your data</strong> · it only lives on this phone</button>`;
+  out += foodToday(S, t) + moreLog(S);
+  out += `<details class="block"><summary>🧍 Posture routine <span class="small muted">· 3 min</span></summary>${postureSteps()}<p class="small muted" style="margin:8px 0 0">Screen at eye level, phone up. See a doctor if the neck bump grows, hurts, or you get tingling or headaches.</p></details>`;
+  return out;
 }
-
-export const dailyKey = () => ui.logDate || today();
-export { num };
+export { stat, fmtShort, weekInBlock };

@@ -12,7 +12,7 @@ function windowVals(S, end, from, to, field) {
 }
 export function weightAvg(S, end, weeksBack = 0) {
   const a = windowVals(S, end, weeksBack * 7, weeksBack * 7 + 6, 'weight');
-  return a.length >= 3 ? avg(a) : null;
+  return a.length >= 2 ? avg(a) : null; // weigh-ins are Sun/Tue/Thu; 2 of 3 is enough
 }
 export function foodScore(S, end) {
   const a = [];
@@ -62,7 +62,7 @@ export function evaluate(S, end, waistNow) {
   const out = (verdict, text, delta = 0, cause = verdict) => ({ verdict, text, delta, cause, why, st });
 
   if (st.days < 14) return out('Hold', 'Too early to judge. The first two weeks are mostly water and stored carbs moving around. Keep going exactly as you are.');
-  if (st.w0 == null || st.w1 == null) return out('Need more data', 'Weigh yourself at least 3–4 mornings a week (after the toilet, before food). Without that the app can\'t tell a plateau from a bad day.');
+  if (st.w0 == null || st.w1 == null) return out('Need more data', 'Weigh in on Sunday, Tuesday and Thursday mornings (after the toilet, before food). Without that the app can\'t tell a plateau from a bad day.');
   if (st.planned && (st.sessions < 3 || (st.food != null && st.food < 0.6))) return out('Fix consistency first', `You did ${st.sessions} of ${st.planned} sessions${st.food != null ? ` and ate to plan about ${Math.round(st.food * 100)}% of days` : ''}. Cutting calories won't help if the plan isn't happening. This week: hit protein every day and show up for all 4 sessions. No calorie change.`, 0, 'consistency');
 
   const r1w = pct(st.w1, st.w0), r2w = st.w2 != null ? pct(st.w2, st.w1) : null;

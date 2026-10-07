@@ -1,14 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Coach">
-<meta name="theme-color" content="#ECEEE9" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0F1311" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0B0D0C">
 <meta name="description" content="Farouk's personal training, meal-prep and progress app.">
 <title>Farouk's Coach</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -32,6 +31,7 @@
   <div class="row"><button data-act="timeradd">+30 s</button><button data-act="timerstop">Done</button></div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="celebrate" id="celebrate" role="dialog" aria-live="assertive"></div>
 <nav class="tabs" aria-label="Main">
   <div class="in">
     <button data-act="go" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Today</button>

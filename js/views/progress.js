@@ -3,6 +3,7 @@ import { ui, today, stat } from '../ui.js';
 import { esc, num, r1, fmtShort, pkey, addDays } from '../util.js';
 import { planWeek, weekInBlock, allRecs, exName, history, stalled, EX } from '../training.js';
 import { stats } from '../adapt.js';
+import { progress, BADGES } from '../game.js';
 
 function weightChart(S) {
   const pts = Object.entries(S.daily).filter(([, v]) => num(v.weight) != null).map(([k, v]) => [k, num(v.weight)]).sort((a, b) => a[0] < b[0] ? -1 : 1);
@@ -66,8 +67,15 @@ function photosBlock() {
 export function vProgress() {
   const S = app.S, t = today(), w = planWeek(S, t), st = stats(S, t);
   const r = ui.ciResult;
-  let out = `<h2 style="margin-top:4px">Progress</h2><div class="block"><h3>Weight</h3>${weightChart(S)}</div>
-  <div class="block"><h3>Weekly check-in${w >= 1 ? ` · week ${weekInBlock(w)}` : ''}</h3><p class="small muted">Saturday or Sunday morning. The app looks at the last 3 weeks and tells you what to change and why. It only touches calories when it's clearly a real plateau.</p>
+  const g = progress(S, t), got = new Set(g.earned);
+  let out = `<h2 style="margin-top:4px">Progress</h2>
+  <div class="block trophy"><div class="row between"><div><div class="kicker">Level ${g.lv.level}</div><div class="lvbig">${g.lv.name}</div></div><div class="xptotal"><b>${g.xp.toLocaleString('en-GB')}</b><span>total XP</span></div></div>
+  <div class="xpbar wide"><i style="width:${Math.round(g.lv.into / g.lv.need * 100)}%"></i></div><p class="tiny muted" style="margin:6px 0 0">${g.lv.need - g.lv.into} XP to level ${g.lv.level + 1}</p>
+  <div class="sumgrid" style="margin-top:14px"><div><b>🔥 ${g.st.weeks}</b><span>perfect weeks</span></div><div><b>🏆 ${g.prs}</b><span>lift records</span></div><div><b>🎖️ ${got.size}/${BADGES.length}</b><span>badges</span></div></div>
+  <details><summary>How to earn XP</summary><div class="small">${[['Finish a session', 50], ['Beat a lift record', 25], ['Close a ring', 10], ['Close all rings in a day', '+25'], ['Cook night done', 30], ['Big cook night', 60], ['Weekly check-in', 40], ['InBody or run test', 50]].map(([a, b]) => stat(a, b + ' XP')).join('')}</div></details></div>
+  <div class="badges">${BADGES.map(b => `<div class="badge ${got.has(b.id) ? 'got' : ''}" title="${esc(b.d)}"><span class="bicon">${got.has(b.id) ? b.icon : '🔒'}</span><b>${esc(b.n)}</b><span>${esc(b.d)}</span></div>`).join('')}</div>
+  <div class="block"><h3>Weight</h3>${weightChart(S)}</div>
+  <div class="block"><h3>Weekly check-in${w >= 1 ? ` · week ${weekInBlock(w)}` : ''}</h3><p class="small muted">Saturday morning. The app reads your last 3 weeks and tells you what to change.</p>
   <div class="grid2"><div><label class="f" for="ciw">Waist at belly button (cm)</label><input class="t" id="ciw" inputmode="decimal" placeholder="e.g. 96"></div><div><label class="f" for="cih">Resting heart rate</label><input class="t" id="cih" inputmode="numeric" placeholder="from Health"></div></div>
   <label class="f" for="cin">Anything to note?</label><input class="t" id="cin" placeholder="Felt tired, missed Monday…">
   <button class="btn primary block-w" style="margin-top:12px" data-act="checkin">Run check-in</button>
