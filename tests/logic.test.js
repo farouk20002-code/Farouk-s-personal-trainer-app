@@ -134,3 +134,8 @@ test('normal cook nights are easy; one big night a month', async () => {
   S.profile.bigMeal = false;
   assert.equal(generateCycle(S, '2026-11-07', 3, null).cooks.filter(k => k.big).length, 0);
 });
+
+test('every food has an Arabic name', async () => {
+  const { FOODS } = await import('../js/foods.js');
+  for (const f of FOODS) assert.ok(f.ar && /[\u0600-\u06FF]/.test(f.ar), `${f.id} has no Arabic name`);
+});
