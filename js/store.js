@@ -24,7 +24,7 @@ export const DEFAULTS = {
     segMuscle: { armR: 91.5, armL: 90.3, trunk: 92.2, legR: 106.2, legL: 105.6 },
     segFat: { armR: 185.9, armL: 189.8, trunk: 226.0, legR: 162.8, legL: 162.0 }
   }],
-  baseline: { waist: null, date: null, neck: '' },
+  baseline: { waist: 98, date: '2026-10-07', neck: '' },
   daily: {},          // date -> {weight, steps, sleep, food, creatine, posture, water, acts:[{t,min}], offplan:[{n,kcal}]}
   logs: {},           // date -> sid -> session record
   checkins: [], tests: [], pausedWeeks: [],
