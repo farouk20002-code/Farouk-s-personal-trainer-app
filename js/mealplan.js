@@ -10,6 +10,10 @@ export const MEAL_SHARE = { breakfast: 0.27, lunch: 0.30, snack: 0.14, dinner: 0
 export const CYCLE_DAYS = 14;
 
 export const allRecipes = S => RECIPES.concat(S.customRecipes || []);
+// Big = oven or long recipes, kept for the monthly big cook night. Imported recipes over 50 min count as big.
+export const isBig = r => r.effort === 'big' || (!!r.custom && (r.time || 0) > 50);
+// One big cook night a month: the first cook night of the 2-week plan that starts in the first half of a month.
+export const hasBigNight = (S, start) => S.profile.bigMeal !== false && Number(start.slice(8, 10)) <= 14;
 export const isHidden = (S, id) => (S.hiddenRecipes || []).includes(id);
 export const recipe = (S, id) => allRecipes(S).find(r => r.id === id) || null;
 const F = (S, id) => food(id, S.customFoods);
@@ -52,8 +56,9 @@ function pools(S) {
   const all = allRecipes(S).filter(r => !isHidden(S, r.id));
   return {
     // In 1-dish mode the dish is also that night's dinner, so it must suit both.
-    batchLunch: all.filter(r => r.kind === 'batch' && r.slots.includes('lunch') && ((S.profile.cookMode || 'one') === 'two' || r.slots.includes('dinner'))),
-    batchDinner: all.filter(r => r.kind === 'batch' && r.slots.includes('dinner')),
+    batchLunch: all.filter(r => r.kind === 'batch' && !isBig(r) && r.slots.includes('lunch') && ((S.profile.cookMode || 'one') === 'two' || r.slots.includes('dinner'))),
+    batchDinner: all.filter(r => r.kind === 'batch' && !isBig(r) && r.slots.includes('dinner')),
+    big: all.filter(r => r.kind === 'batch' && isBig(r) && r.slots.includes('lunch') && r.slots.includes('dinner')),
     breakfast: all.filter(r => r.slots.includes('breakfast')),
     snack: all.filter(r => r.slots.includes('snack')),
     nocookLunch: all.filter(r => r.kind === 'nocook' && r.slots.includes('lunch')),
@@ -82,9 +87,11 @@ export function generateCycle(S, start, seed, prev) {
       .sort((x, y) => (used.has(x.id) - used.has(y.id)) || (prevUsed.has(x.id) - prevUsed.has(y.id)) || ((avoidBase.includes(x.base)) - (avoidBase.includes(y.base))));
     const r = ranked[0]; if (r) used.add(r.id); return r ? r.id : null;
   };
+  const bigIdx = hasBigNight(S, start) && P.big.length ? 0 : -1;
   cooks.forEach((c, i) => {
     const prevBase = i > 0 ? [recipe(S, cooks[i - 1].a)?.base, recipe(S, cooks[i - 1].b)?.base] : [];
-    c.a = choose(P.batchLunch, i, prevBase);
+    if (i === bigIdx) { c.big = true; c.a = choose(P.big, i, prevBase) || choose(P.batchLunch, i, prevBase); }
+    else c.a = choose(P.batchLunch, i, prevBase);
     if (mode === 'two') c.b = choose(P.batchDinner, i, prevBase.concat([recipe(S, c.a)?.base]));
   });
   const rot = (pool) => { const order = shuffle(pool, rand).map(r => r.id); let i = 0; return (avoid = []) => { for (let t = 0; t < order.length; t++) { const id = order[(i + t) % order.length]; if (!avoid.includes(id) || t === order.length - 1) { i = i + t + 1; return id; } } return order[0]; }; };
@@ -161,7 +168,7 @@ export function cookSessions(S, c, f = flexFactor(S, c)) {
       const per = scaled(S, r, f);
       return { role: k, r, portions: portions[k], eats: eats[k], per, total: per.map(([id, q]) => [id, Math.round(q * portions[k] * 10) / 10]) };
     });
-    return { i, date: ck.date, dishes, boil, boxes: sum(dishes.map(x => x.portions)) - (dishes.some(x => x.eats.some(([d]) => d === ck.date)) ? 1 : 0), minutes: Math.max(0, ...dishes.map(x => x.r.time)) + (dishes.length > 1 ? 20 : 0) };
+    return { i, date: ck.date, big: !!ck.big, dishes, boil, boxes: sum(dishes.map(x => x.portions)) - (dishes.some(x => x.eats.some(([d]) => d === ck.date)) ? 1 : 0), minutes: Math.max(0, ...dishes.map(x => x.r.time)) + (dishes.length > 1 ? 20 : 0) };
   });
 }
 // Eggs to boil before the first cook day (on the shop day).

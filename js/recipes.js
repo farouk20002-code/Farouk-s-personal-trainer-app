@@ -1,5 +1,6 @@
 // Recipe library. items: [foodId, quantity per portion, flex]. Flex items (rice, pasta, bread, oil...)
 // scale up or down to hit the calorie target; protein items never shrink.
+// effort: 'big' = monthly big cook night only (oven, longer); everything else is an easy weeknight dish.
 // kind: batch (cooked on a cook day, kept in boxes), fresh (made that morning, quick), nocook (assembled).
 // slots: which meals it can fill. keeps: days in the fridge once cooked. boil: boiled eggs needed (prepped on cook day).
 export const RECIPES = [
@@ -7,22 +8,22 @@ export const RECIPES = [
   { id: 'kabsa', n: 'Chicken kabsa-style rice', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 50, tool: 'Stove, one big pot', keeps: 3,
     items: [['chicken', 180], ['rice', 75, 1], ['onion', 40], ['tomato', 60], ['paste', 10], ['veg', 80], ['oil', 6, 1]],
     steps: ['Cut the chicken into big chunks. Rinse the rice and soak it in water while you cook.', 'Heat the oil in a big pot, soften the chopped onion 5 min, add the chicken and brown it 5 min.', 'Add chopped tomato, tomato paste, kabsa spice, salt and a stock cube. Stir 2 min.', 'Add water: 1.5 cups per cup of rice. Bring to a boil, add the drained rice and frozen vegetables.', 'Lid on, lowest heat, 20 min. Turn off and leave it closed 10 min, then fluff and box.'] },
-  { id: 'tray', n: 'Lemon garlic chicken and potato tray', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 55, tool: 'Oven', keeps: 3,
+  { id: 'tray', effort: 'big', n: 'Lemon garlic chicken and potato tray', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 55, tool: 'Oven', keeps: 3,
     items: [['chicken', 180], ['potato', 280, 1], ['onion', 50], ['veg', 80], ['lemon', 15], ['garlic', 5], ['oil', 8, 1]],
     steps: ['Oven to 220 °C. Cut potatoes into wedges, onion into quarters.', 'Toss potatoes and onion with half the oil, salt, pepper and paprika. Roast 20 min.', 'Mix the chicken (cut in strips) with crushed garlic, lemon juice, the rest of the oil, cumin and salt.', 'Add the chicken and frozen veg to the tray, roast another 20–25 min until the chicken is cooked through.', 'Let it cool 10 min, then box.'] },
-  { id: 'kofta', n: 'Kofta and potato tray in tomato sauce', kind: 'batch', slots: ['lunch', 'dinner'], base: 'beef', time: 60, tool: 'Oven', keeps: 3,
+  { id: 'kofta', effort: 'big', n: 'Kofta and potato tray in tomato sauce', kind: 'batch', slots: ['lunch', 'dinner'], base: 'beef', time: 60, tool: 'Oven', keeps: 3,
     items: [['mince', 170], ['potato', 220, 1], ['onion', 50], ['crushed', 0.5], ['oil', 4, 1]],
     steps: ['Oven to 200 °C. Grate half the onion into the mince with salt, pepper, seven spices and dried coriander. Shape into fingers.', 'Slice potatoes into rounds, toss with the oil and salt, spread on a tray.', 'Put the kofta on top, roast 15 min.', 'Pour over crushed tomatoes mixed with a little water, salt and the rest of the onion, sliced. Roast 25 min more.', 'Cool, then box with the sauce.'] },
   { id: 'macarona', n: 'Beef and tomato pasta', kind: 'batch', slots: ['lunch', 'dinner'], base: 'beef', time: 30, tool: 'Stove', keeps: 3,
     items: [['mince', 130], ['pasta', 85, 1], ['crushed', 0.5], ['onion', 40], ['garlic', 5], ['cheese', 20], ['oil', 3, 1]],
     steps: ['Boil the pasta in salted water, 1 minute less than the packet says. Drain.', 'Meanwhile, oil in a pan, soften the onion 4 min, add garlic and the mince, break it up and brown 6 min.', 'Add crushed tomatoes, salt, pepper and a pinch of seven spices. Simmer 10 min.', 'Mix pasta into the sauce. Box it and crumble the white cheese on top.'] },
-  { id: 'shawarma', n: 'Chicken shawarma bowl', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 45, tool: 'Oven + stove', keeps: 3,
+  { id: 'shawarma', effort: 'big', n: 'Chicken shawarma bowl', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 45, tool: 'Oven + stove', keeps: 3,
     items: [['chicken', 180], ['rice', 70, 1], ['yogurt', 80], ['cucumber', 80], ['garlic', 5], ['lemon', 10], ['oil', 6, 1]],
     steps: ['Slice the chicken thin. Mix with the oil, lemon, half the garlic, paprika, cumin, a little cinnamon, salt. 15 min is enough marinating.', 'Rice: 1.5 cups water per cup of rice, boil, lowest heat with the lid on 15 min.', 'Spread the chicken on a tray, oven 230 °C for 15–18 min, until the edges brown.', 'Garlic yogurt: yogurt + the rest of the garlic + salt + dried mint. Keep it in a separate small box.', 'Box rice and chicken. Cut the cucumber fresh in the morning or put it on the side.'] },
-  { id: 'molokhia', n: 'Chicken molokhia with rice', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 45, tool: 'Stove', keeps: 2,
+  { id: 'molokhia', effort: 'big', n: 'Chicken molokhia with rice', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 45, tool: 'Stove', keeps: 2,
     items: [['chicken', 170], ['molokhia', 200], ['rice', 70, 1], ['garlic', 8], ['oil', 6, 1]],
     steps: ['Boil the chicken pieces in water with a stock cube, onion and salt for 20 min. Keep the broth.', 'Rice: cook it in some of the broth instead of water. Lid on, low heat, 15 min.', 'Bring 2–3 cups of broth to a simmer, add the frozen molokhia, stir until it melts, 5 min. Do not boil hard.', 'Fry the crushed garlic and dried coriander in the oil until golden (the "ta\'leya") and pour it into the molokhia.', 'Box rice and chicken together, molokhia in its own container.'] },
-  { id: 'sayadeya', n: 'Fish with onion rice (sayadeya style)', kind: 'batch', slots: ['lunch', 'dinner'], base: 'fish', time: 45, tool: 'Stove + oven', keeps: 2,
+  { id: 'sayadeya', effort: 'big', n: 'Fish with onion rice (sayadeya style)', kind: 'batch', slots: ['lunch', 'dinner'], base: 'fish', time: 45, tool: 'Stove + oven', keeps: 2,
     items: [['fish', 250], ['rice', 70, 1], ['onion', 60], ['crushed', 0.4], ['lemon', 10], ['oil', 7, 1]],
     steps: ['Thaw the fish in the fridge overnight. Slice the onion thin and fry it in most of the oil until dark golden, 10 min.', 'Add the rice, cumin, salt and 1.5 cups water per cup of rice. Lid on, low heat, 18 min.', 'Season the fish with cumin, salt, lemon and the last of the oil. Oven 200 °C, 12–15 min.', 'Warm the crushed tomatoes with a pinch of cumin as a sauce.', 'Fish keeps 2 days. The plan only uses it for the next 2 days.'] },
   { id: 'pilaf', n: 'Chicken and bulgur pilaf', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 35, tool: 'Stove', keeps: 3,
@@ -43,6 +44,33 @@ export const RECIPES = [
   { id: 'koshari', n: 'Lighter koshari with eggs', kind: 'batch', slots: ['dinner'], base: 'lentils', time: 45, tool: 'Stove', keeps: 3, boil: 2,
     items: [['lentils', 40], ['rice', 35, 1], ['pasta', 25, 1], ['chickpeas', 0.25], ['crushed', 0.5], ['onion', 70], ['eggs', 2], ['oil', 7, 1]],
     steps: ['Fry the sliced onion in the oil until crispy and dark, set aside.', 'Boil the lentils 10 min, add the rice and enough water to cover by 2 cm, cumin and salt, lid on 15 min.', 'Boil the pasta separately.', 'Sauce: crushed tomatoes, garlic, a splash of vinegar, cumin, salt. Simmer 10 min.', 'Box: rice-lentils, pasta, chickpeas, onions on top, sauce on the side. 2 boiled eggs with it.'] },
+
+  { id: 'stew', n: 'Chicken and potato in tomato sauce (one pot)', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 40, tool: 'Stove, one pot', keeps: 3,
+    items: [['chicken', 170], ['potato', 200, 1], ['crushed', 0.5], ['onion', 40], ['veg', 80], ['bread', 0.5, 1], ['oil', 5, 1]],
+    steps: ['Cube the chicken and potatoes (small cubes cook faster).', 'Oil in a pot, onion 4 min, chicken 5 min with salt, pepper, seven spices and a little cumin.', 'Add potatoes, crushed tomatoes, frozen veg and a cup of water. Lid on, simmer 20 min until the potatoes are soft.', 'Box it. Eat with the bread to wipe up the sauce.'] },
+  { id: 'ruzlahma', n: 'Spiced beef and vegetable rice (one pot)', kind: 'batch', slots: ['lunch', 'dinner'], base: 'beef', time: 35, tool: 'Stove, one pot', keeps: 3,
+    items: [['mince', 160], ['rice', 75, 1], ['veg', 100], ['onion', 40], ['oil', 4, 1]],
+    steps: ['Rinse and soak the rice while you start.', 'Oil in a pot, onion 4 min, then the mince. Break it up and brown 6 min with salt, pepper, seven spices and a pinch of cinnamon.', 'Add frozen veg, the drained rice and 1.5 cups of water per cup of rice.', 'Boil, then lid on, lowest heat 18 min. Rest 5 min, fluff, box.'] },
+  { id: 'chpasta', n: 'Chicken pasta in creamy tomato sauce', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 30, tool: 'Stove', keeps: 3,
+    items: [['chicken', 170], ['pasta', 80, 1], ['crushed', 0.4], ['yogurt', 60], ['veg', 60], ['garlic', 5], ['oil', 5, 1]],
+    steps: ['Boil the pasta in salted water.', 'Meanwhile: oil in a pan, chicken strips 6 min with salt, paprika and garlic.', 'Add crushed tomatoes and frozen veg, simmer 8 min.', 'Off the heat, stir in the yogurt (it makes it creamy), then the drained pasta. Box.'] },
+
+  // ---- Big cook night, once a month (oven + stove, worth the effort) ----
+  { id: 'mandi', effort: 'big', n: 'Chicken mandi-style rice with tomato salsa', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 90, tool: 'Oven + stove', keeps: 3,
+    items: [['chicken', 200], ['rice', 80, 1], ['onion', 50], ['tomato', 60], ['yogurt', 60], ['garlic', 5], ['oil', 7, 1]],
+    steps: ['Rub the chicken with salt, kabsa spice, a little turmeric, garlic and half the oil. Leave it 20 min (or overnight).', 'Oven to 220 °C. Roast the chicken on a tray 30–35 min until golden.', 'Meanwhile: oil in a pot, onion until golden, add the rinsed rice, kabsa spice, a stock cube and 1.5 cups water per cup of rice. Lid on, low heat 20 min.', 'Pour the tray juices over the rice. Put the chicken on top, lid on 5 min so the rice takes the flavour.', 'Salsa (daqqus): blend tomato, garlic, salt, lemon and a little cumin with the hand blender. Garlic yogurt on the side.'] },
+  { id: 'bechamel', effort: 'big', n: 'Macarona béchamel (lighter Egyptian style)', kind: 'batch', slots: ['lunch', 'dinner'], base: 'beef', time: 75, tool: 'Oven + stove', keeps: 3,
+    items: [['mince', 120], ['pasta', 80, 1], ['milk', 150], ['flour', 12], ['cheese', 20], ['onion', 40], ['crushed', 0.3], ['oil', 4, 1]],
+    steps: ['Boil the pasta (penne) 2 min less than the packet. Drain.', 'Meat: oil, onion, mince, salt, pepper, seven spices, then the crushed tomatoes. Simmer 10 min.', 'Béchamel: warm the milk. In another pot, stir the flour in a little oil 1 min, then whisk in the milk slowly until thick. Salt, pepper, a pinch of nutmeg if you have it.', 'Oven dish: half the pasta, all the meat, the rest of the pasta, béchamel on top, crumbled cheese.', 'Oven 200 °C for 25–30 min until golden. Cool, cut into equal squares, box.'] },
+  { id: 'maqluba', effort: 'big', n: 'Chicken maqluba (upside-down rice)', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 80, tool: 'Oven + stove, big pot', keeps: 3,
+    items: [['chicken', 170], ['rice', 70, 1], ['potato', 150, 1], ['veg', 60], ['onion', 40], ['oil', 8, 1]],
+    steps: ['Boil the chicken pieces with onion, a stock cube, salt and seven spices 20 min. Keep the broth.', 'Slice the potatoes into rounds, toss with most of the oil and salt, roast at 220 °C for 20 min (instead of frying).', 'In a big pot: chicken at the bottom, then roasted potatoes and frozen veg, then the rinsed rice.', 'Pour in broth to cover the rice by 2 cm, seven spices and turmeric. Lid on, low heat 25 min.', 'Rest 10 min, put a big tray on top and flip it over. Box it with yogurt on the side if you like.'] },
+  { id: 'daoud', effort: 'big', n: 'Daoud basha meatballs with rice', kind: 'batch', slots: ['lunch', 'dinner'], base: 'beef', time: 70, tool: 'Oven + stove', keeps: 3,
+    items: [['mince', 160], ['rice', 70, 1], ['crushed', 0.5], ['onion', 50], ['garlic', 5], ['oil', 5, 1]],
+    steps: ['Mix the mince with grated onion, salt, pepper, seven spices and dried coriander. Roll small balls.', 'Bake the balls on a tray at 220 °C for 12 min (less mess than frying).', 'Sauce: oil, the rest of the onion and the garlic 4 min, crushed tomatoes, a cup of water, salt, cumin. Add the meatballs, simmer 20 min.', 'Rice: 1.5 cups water per cup, lid on, low heat 15 min.', 'Box the rice with the meatballs and plenty of sauce.'] },
+  { id: 'tawook', effort: 'big', n: 'Shish tawook with garlic sauce and potatoes', kind: 'batch', slots: ['lunch', 'dinner'], base: 'chicken', time: 70, tool: 'Oven', keeps: 3,
+    items: [['chicken', 190], ['yogurt', 80], ['potato', 220, 1], ['cucumber', 80], ['lemon', 15], ['garlic', 8], ['oil', 8, 1]],
+    steps: ['Cube the chicken. Marinate in half the yogurt, lemon, half the garlic, paprika, a spoon of tomato paste, salt. 30 min or overnight.', 'Oven to 230 °C. Potato wedges with half the oil and salt, roast 20 min.', 'Add the chicken to the tray (or a second tray), roast 18–20 min until charred at the edges.', 'Garlic sauce: the rest of the yogurt, the rest of the garlic, lemon, salt, a little oil. Whisk.', 'Box chicken and potatoes, sauce in a small container, cucumber fresh on the day.'] },
 
   // ---- Breakfasts (after the gym, made fresh, 10 min) ----
   { id: 'eggplate', n: 'Eggs, white cheese and bread', kind: 'fresh', slots: ['breakfast'], base: 'eggs', time: 8, tool: 'Pan',

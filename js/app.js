@@ -3,7 +3,7 @@ import { ui, setRender, render, toast, go, today, armed, copyText, saveFile } fr
 import { num, r1, addDays, esc, rng } from './util.js';
 import { EX, planWeek, calWeek, getRec, exRec, exName, touched } from './training.js';
 import { evaluate, applyDelta, weightAvg } from './adapt.js';
-import { generateCycle, cycleFor, recipe, allRecipes, slotRid, isHidden, CYCLE_DAYS } from './mealplan.js';
+import { generateCycle, cycleFor, recipe, allRecipes, slotRid, isHidden, isBig, CYCLE_DAYS } from './mealplan.js';
 import { statusText, recipePrompt, parseImport, QUESTIONS } from './status.js';
 import { buildICS } from './ics.js';
 import { addPhoto, listPhotos, deletePhoto, importPhotos } from './photos.js';
@@ -64,7 +64,8 @@ function swapMeal(c, d, meal, quiet) {
   if (slot.cook != null) {
     const ck = c.cooks[slot.cook], role = slot.role, cur = ck[role];
     const one = (s.profile.cookMode || 'one') !== 'two';
-    const pool = all.filter(r => r.kind === 'batch' && r.slots.includes(role === 'a' ? 'lunch' : 'dinner') && !(role === 'a' && one && !r.slots.includes('dinner')));
+    const pool = all.filter(r => r.kind === 'batch' && r.slots.includes(role === 'a' ? 'lunch' : 'dinner') && !(role === 'a' && one && !r.slots.includes('dinner')) && (role === 'a' && ck.big ? isBig(r) : !isBig(r)));
+    if (!pool.length) return;
     const inUse = new Set(c.cooks.flatMap(k => [k.a, k.b]));
     const idx = pool.findIndex(r => r.id === cur);
     for (let i = 1; i <= pool.length; i++) { const r = pool[(idx + i) % pool.length]; if (!inUse.has(r.id) || i === pool.length) { ck[role] = r.id; break; } }
@@ -181,6 +182,7 @@ const ACT = {
   gotit: t => { const c = S().meal.cycles.find(x => x.start === t.dataset.c); c.got = c.got || {}; c.got[t.dataset.id] = !c.got[t.dataset.id]; save(); render(); },
   haveit: t => { const c = S().meal.cycles.find(x => x.start === t.dataset.c); c.have = c.have || {}; c.have[t.dataset.id] = !c.have[t.dataset.id]; save(); render(); },
   daytoggle: t => { const P = S().profile, f = t.dataset.f, v = +t.dataset.v; P[f] = P[f].includes(v) ? P[f].filter(x => x !== v) : P[f].concat([v]).sort(); save(); render(); },
+  bigmeal: () => { const P = S().profile; P.bigMeal = P.bigMeal === false; save(); render(); },
   cookmode: t => { S().profile.cookMode = t.dataset.v; save(); render(); },
   awaytoggle: () => { const P = S().profile; P.awayMeals = (P.awayMeals || []).includes('4:dinner') ? P.awayMeals.filter(x => x !== '4:dinner') : (P.awayMeals || []).concat(['4:dinner']); save(); render(); },
   icstoggle: t => { icsSel[t.dataset.k] = !icsSel[t.dataset.k]; render(); },

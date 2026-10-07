@@ -153,3 +153,5 @@ nav.tabs button.on{color:var(--red)}
 :focus-visible{outline:3px solid var(--red);outline-offset:2px}
 @media (max-width:360px){h1.day{font-size:42px}.grid3{grid-template-columns:1fr 1fr}.mealrow{grid-template-columns:60px 1fr auto}}
 .mealrow.qrow{grid-template-columns:1fr auto}
+.bigtag{display:inline-block;background:var(--red);color:var(--on-red);font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;letter-spacing:.02em}
+.block.bigb{border-color:var(--red)}
