@@ -139,3 +139,30 @@ test('every food has an Arabic name', async () => {
   const { FOODS } = await import('../js/foods.js');
   for (const f of FOODS) assert.ok(f.ar && /[\u0600-\u06FF]/.test(f.ar), `${f.id} has no Arabic name`);
 });
+
+test('rings, streaks, records and levels', async () => {
+  const G = await import('../js/game.js');
+  const S = fresh();
+  // Sunday 2026-10-11: train, food, creatine, posture, weigh-in
+  assert.deepEqual(G.rings(S, '2026-10-11').map(r => r.id), ['train', 'food', 'creatine', 'posture', 'weigh']);
+  // Friday: away, only creatine
+  assert.deepEqual(G.rings(S, '2026-10-16').map(r => r.id), ['creatine']);
+  // Creatine streak: 3 days, today not done yet does not break it
+  for (const k of ['2026-10-12', '2026-10-13', '2026-10-14']) S.daily[k] = { creatine: true };
+  assert.equal(G.streaks(S, '2026-10-15').creatine, 3);
+  // Food streak skips the weekend
+  for (const k of ['2026-10-14', '2026-10-15', '2026-10-18']) S.daily[k] = { ...(S.daily[k] || {}), food: 'yes' };
+  assert.equal(G.streaks(S, '2026-10-18').food, 3);
+  // Records: second session heavier = 1 record, first ever is not a record
+  getRec(S, '2026-10-12', 'UA', true).ex.bench = { alt: -1, sets: [{ w: '50', r: '8', done: true }] };
+  getRec(S, '2026-10-19', 'UA', true).ex.bench = { alt: -1, sets: [{ w: '55', r: '8', done: true }] };
+  assert.equal(G.recordCount(S), 1);
+  assert.equal(G.isRecord(S, 'bench', -1, '2026-10-26', '57.5', '8', 0, 'UA'), true);
+  assert.equal(G.isRecord(S, 'bench', -1, '2026-10-26', '50', '8', 0, 'UA'), false);
+  // Levels
+  assert.equal(G.levelOf(0).level, 1); assert.equal(G.levelOf(150).level, 2); assert.equal(G.levelOf(399).level, 2); assert.equal(G.levelOf(400).level, 3);
+  // Perfect-week streak
+  const T = fresh();
+  for (const [d, sid] of [['2026-10-11', 'LA'], ['2026-10-12', 'UA'], ['2026-10-13', 'LB'], ['2026-10-14', 'UB']]) getRec(T, d, sid, true).done = true;
+  assert.equal(G.streaks(T, '2026-10-20').weeks, 1);
+});

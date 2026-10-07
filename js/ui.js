@@ -18,6 +18,18 @@ export function toast(t) {
   el.textContent = t; el.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 2400);
 }
+// Full-screen celebration (records, level-ups, badges, finished sessions). Queued, tap to dismiss.
+const queue = [];
+export function celebrate(c) {
+  if (c) queue.push(c);
+  const el = document.getElementById('celebrate'); if (!el || el.classList.contains('show') || !queue.length) return;
+  const x = queue.shift();
+  el.innerHTML = `<div class="cel ${x.big ? 'big' : ''}">${x.big ? '<div class="confetti">' + Array.from({ length: 24 }, (_, i) => `<i style="--i:${i}"></i>`).join('') + '</div>' : ''}<div class="kicker">${esc(x.kicker || '')}</div><h2>${esc(x.title || '')}</h2>${x.sub ? `<p>${esc(x.sub)}</p>` : ''}${x.xp ? `<div class="xpgain">+${x.xp} XP</div>` : ''}<span class="small muted">Tap to continue</span></div>`;
+  el.classList.add('show');
+  try { navigator.vibrate?.(x.big ? [60, 40, 120] : 40); } catch (e) { /* ignore */ }
+}
+celebrate.next = () => { const el = document.getElementById('celebrate'); el.classList.remove('show'); setTimeout(() => celebrate(), 120); };
+
 export function go(route) {
   ui.route = route; ui.openSwap = null;
   try { history.pushState({ route }, ''); } catch (e) { /* ignore */ }
