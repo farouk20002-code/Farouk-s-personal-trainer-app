@@ -3,7 +3,7 @@ import { ui, setRender, render, toast, go, today, armed, copyText, saveFile } fr
 import { num, r1, addDays, esc, rng } from './util.js';
 import { EX, planWeek, calWeek, getRec, exRec, exName, touched } from './training.js';
 import { evaluate, applyDelta, weightAvg } from './adapt.js';
-import { generateCycle, cycleFor, recipe, allRecipes, slotRid, CYCLE_DAYS } from './mealplan.js';
+import { generateCycle, cycleFor, recipe, allRecipes, slotRid, isHidden, CYCLE_DAYS } from './mealplan.js';
 import { statusText, recipePrompt, parseImport, QUESTIONS } from './status.js';
 import { buildICS } from './ics.js';
 import { addPhoto, listPhotos, deletePhoto, importPhotos } from './photos.js';
@@ -58,9 +58,9 @@ function makeCycle(start, fresh) {
   s.meal.cycles = (s.meal.cycles || []).filter(x => x.start !== start).concat([c]).sort((a, b) => a.start < b.start ? -1 : 1).slice(-6);
   save(); return c;
 }
-function swapMeal(c, d, meal) {
+function swapMeal(c, d, meal, quiet) {
   const s = S(), slot = c.days[d]?.[meal]; if (!slot) return;
-  const all = allRecipes(s);
+  const all = allRecipes(s).filter(r => !isHidden(s, r.id));
   if (slot.cook != null) {
     const ck = c.cooks[slot.cook], role = slot.role, cur = ck[role];
     const one = (s.profile.cookMode || 'one') !== 'two';
@@ -68,7 +68,7 @@ function swapMeal(c, d, meal) {
     const inUse = new Set(c.cooks.flatMap(k => [k.a, k.b]));
     const idx = pool.findIndex(r => r.id === cur);
     for (let i = 1; i <= pool.length; i++) { const r = pool[(idx + i) % pool.length]; if (!inUse.has(r.id) || i === pool.length) { ck[role] = r.id; break; } }
-    toast(`${s.profile.cookDays.length ? 'Cook night' : 'Batch'} dish changed to ${recipe(s, ck[role]).n}`);
+    if (!quiet) toast(`Cook night dish changed to ${recipe(s, ck[role]).n}`);
   } else {
     const r0 = recipe(s, slot.rid);
     const pool = all.filter(r => r.slots.includes(meal) && (meal === 'breakfast' || meal === 'snack' || r.kind === 'nocook'));
@@ -76,6 +76,18 @@ function swapMeal(c, d, meal) {
     slot.rid = pool[(idx + 1) % pool.length].id;
   }
   save();
+}
+
+// Take a removed dish out of the current and future plans.
+function replaceEverywhere(id) {
+  const s = S(), t = today();
+  for (const c of s.meal.cycles || []) {
+    if (addDays(c.start, CYCLE_DAYS - 1) < t) continue;
+    for (const [d, day] of Object.entries(c.days)) for (const meal of Object.keys(day)) {
+      if (d < t) continue;
+      if (slotRid(c, day[meal]) === id) swapMeal(c, d, meal, true);
+    }
+  }
 }
 
 /* ---------- Actions ---------- */
@@ -157,6 +169,12 @@ const ACT = {
     render();
   },
   delrecipe: t => { if (!armed(t, '?')) return; const s = S(); s.customRecipes = s.customRecipes.filter(r => r.id !== t.dataset.id); for (const c of s.meal.cycles) { const used = Object.values(c.days).some(d => Object.values(d).some(sl => slotRid(c, sl) === t.dataset.id)); if (used) toast('Removed. Regenerate the plan to replace it where it was used.'); } save(); render(); },
+  hiderecipe: t => {
+    const s = S(), id = t.dataset.id; s.hiddenRecipes = s.hiddenRecipes || [];
+    if (isHidden(s, id)) { s.hiddenRecipes = s.hiddenRecipes.filter(x => x !== id); toast('Back in the rotation'); }
+    else { s.hiddenRecipes.push(id); replaceEverywhere(id); toast('Removed. Replaced in your plan from today on.'); }
+    save(); render();
+  },
   gencycle: t => { makeCycle(t.dataset.start, false); toast('2-week plan ready'); render(); },
   regen: t => { if (!armed(t, 'Tap again: new recipes')) return; makeCycle(t.dataset.c, true); toast('New recipes picked'); render(); },
   swapmeal: t => { const c = S().meal.cycles.find(x => x.start === t.dataset.c); if (c) { swapMeal(c, t.dataset.d, t.dataset.m); render(); } },

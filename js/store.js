@@ -30,7 +30,7 @@ export const DEFAULTS = {
   checkins: [], tests: [], pausedWeeks: [],
   kcalHistory: [{ date: '2026-10-07', kcal: 2200, reason: 'Starting target from the first InBody' }],
   meal: { cycles: [] },
-  customRecipes: [], customFoods: {},
+  customRecipes: [], customFoods: {}, hiddenRecipes: [],
   prep: { inbody: true },
   lastBackup: null
 };
