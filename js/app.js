@@ -5,7 +5,7 @@ import { num, r1, addDays, esc, rng } from './util.js';
 import { EX, SESSIONS, planWeek, calWeek, getRec, exRec, exName, touched, doneInWeek, sessionSummary, dayKind } from './training.js';
 import { evaluate, applyDelta, weightAvg } from './adapt.js';
 import { generateCycle, cycleFor, recipe, allRecipes, slotRid, isHidden, isBig, CYCLE_DAYS } from './mealplan.js';
-import { statusText, recipePrompt, parseImport, QUESTIONS } from './status.js';
+import { statusText, recipePrompt, parseImport, QUESTIONS, INBODY_PROMPT, parseInbody } from './status.js';
 import { buildICS } from './ics.js';
 import { addPhoto, listPhotos, deletePhoto, importPhotos } from './photos.js';
 import { vToday, EAT_OUT, ACTS, dailyKey } from './views/today.js';
@@ -102,6 +102,7 @@ const ACT = {
   logday: t => { const d = +t.dataset.d, t0 = today(); ui.logDate = d === 0 ? null : addDays(dailyKey(), d); if (ui.logDate && ui.logDate >= t0) ui.logDate = null; render(); },
   dailyseg: t => { daily()[t.dataset.f] = t.dataset.v; if (t.dataset.f === 'food') ui.ringOpen = null; save(); if (t.dataset.v === 'yes' && !ui.logDate) toast(`+${XP.ring} XP`); render(); },
   dailytick: t => { const d = daily(); d[t.dataset.f] = !d[t.dataset.f]; if (t.dataset.f === 'posture') ui.ringOpen = null; save(); if (d[t.dataset.f]) toast(`+${XP.ring} XP`); render(); },
+  agenda: () => { ui.agendaOpen = !ui.agendaOpen; render(); },
   ring: t => {
     const id = t.dataset.id, d = S().daily[today()] || {};
     ui.logDate = null;
@@ -162,8 +163,20 @@ const ACT = {
     if (v('ib_weight') == null || v('ib_pbf') == null) { toast('Weight and body fat % are needed'); return; }
     const seg = p => { const o = {}; for (const k of ['armL', 'armR', 'trunk', 'legL', 'legR']) { const x = v(p + k); if (x != null) o[k] = x; } return Object.keys(o).length ? o : undefined; };
     const w = v('ib_weight'), pbf = v('ib_pbf');
-    S().inbody.push({ date: today(), weight: w, pbf, smm: v('ib_smm'), bfm: v('ib_bfm') ?? r1(w * pbf / 100), visceral: v('ib_visceral'), whr: v('ib_whr'), score: v('ib_score'), segMuscle: seg('ibm_'), segFat: seg('ibf_') });
+    const date = /^\d{4}-\d{2}-\d{2}$/.test($('#ib_date')?.value || '') ? $('#ib_date').value : today();
+    const s = S();
+    s.inbody.push({ date, weight: w, pbf, smm: v('ib_smm'), bfm: v('ib_bfm') ?? r1(w * pbf / 100), visceral: v('ib_visceral'), whr: v('ib_whr'), score: v('ib_score'), segMuscle: seg('ibm_'), segFat: seg('ibf_') });
+    s.inbody.sort((a, b) => a.date < b.date ? -1 : 1);
+    ui.ibDraft = null; ui.ibOpen = false; ui.ibMsg = null; ui.ibCopied = null;
     save(); toast('InBody saved'); render();
+  },
+  copyinbody: async () => { ui.ibCopied = await copyText(INBODY_PROMPT); ui.ibOpen = true; render(); },
+  importinbody: () => {
+    const { data, errors } = parseInbody($('#ibpaste')?.value);
+    ui.ibOpen = true;
+    if (data && (data.weight != null || data.pbf != null)) { ui.ibDraft = data; ui.ibMsg = (errors.length ? esc(errors.join(' ')) + ' ' : '') + 'Filled in. Check the numbers against the sheet, then tap Save InBody.'; }
+    else ui.ibMsg = esc(errors.join(' ') || 'Nothing found in that reply.');
+    render();
   },
   addtest: () => { const m = num($('#testm').value); if (m == null) return; const s = S(), t = today(); s.tests.push({ week: ((Math.max(1, planWeek(s, t)) - 1) % 12) + 1, date: t, m: Math.round(m) }); save(); toast('Run test saved'); render(); },
   delphoto: async t => { if (!armed(t, 'tap again')) return; await deletePhoto(t.dataset.id); ui.photos = await listPhotos(); render(); },

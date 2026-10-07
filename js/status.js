@@ -104,3 +104,31 @@ export function parseImport(S, text) {
   if (!recipes.length && !errors.length) errors.push('No recipes found in that reply.');
   return { recipes, foods, errors };
 }
+
+// InBody from a photo: Claude reads the report (Arabic or English) and answers in a format the app can load.
+export const INBODY_PROMPT = `I'm attaching a photo of my InBody result sheet (it may be in Arabic). Read it carefully and reply with ONE code block of JSON, exactly in this shape, numbers only, null for anything you can't see:
+{"date":"YYYY-MM-DD","weight":86.6,"pbf":24.5,"smm":37.1,"bfm":21.2,"visceral":8,"whr":0.90,"score":70,"segMuscle":{"armL":90.3,"armR":91.5,"trunk":92.2,"legL":105.6,"legR":106.2},"segFat":{"armL":189.8,"armR":185.9,"trunk":226.0,"legL":162.0,"legR":162.8}}
+Field meanings: weight = body weight kg; pbf = percent body fat; smm = skeletal muscle mass kg; bfm = body fat mass kg; visceral = visceral fat level; whr = waist-hip ratio; score = InBody score out of 100; segMuscle = segmental lean (muscle) analysis, the % value for each limb and the trunk; segFat = segmental fat analysis, the % value for each. Use the report's own left/right labels (يسار = left, يمين = right). Use the test date printed on the sheet.`;
+
+const RANGES = { weight: [30, 250], pbf: [3, 70], smm: [10, 80], bfm: [1, 150], visceral: [1, 30], whr: [0.5, 1.5], score: [0, 100] };
+export function parseInbody(text) {
+  let raw = String(text || '').trim();
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) raw = fence[1]; else { const a = raw.indexOf('{'), b = raw.lastIndexOf('}'); if (a >= 0 && b > a) raw = raw.slice(a, b + 1); }
+  let d; try { d = JSON.parse(raw); } catch (e) { return { data: null, errors: ['Couldn\'t read that. Copy Claude\'s whole answer, including the code block.'] }; }
+  const out = {}, errors = [];
+  for (const [k, [lo, hi]] of Object.entries(RANGES)) {
+    const v = typeof d[k] === 'number' ? d[k] : num(d[k]);
+    if (v == null) continue;
+    if (v < lo || v > hi) { errors.push(`${k} = ${v} looks wrong, left it empty.`); continue; }
+    out[k] = v;
+  }
+  for (const g of ['segMuscle', 'segFat']) {
+    const src = d[g] || {}, o = {};
+    for (const k of ['armL', 'armR', 'trunk', 'legL', 'legR']) { const v = typeof src[k] === 'number' ? src[k] : num(src[k]); if (v != null && v >= 20 && v <= 700) o[k] = v; }
+    if (Object.keys(o).length) out[g] = o;
+  }
+  if (typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && !isNaN(new Date(d.date))) out.date = d.date;
+  if (out.weight == null || out.pbf == null) errors.unshift('Weight or body fat % is missing. Check the photo is sharp and try again, or type them in.');
+  return { data: out, errors };
+}
