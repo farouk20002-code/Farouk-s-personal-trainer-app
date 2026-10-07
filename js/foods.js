@@ -32,6 +32,7 @@ export const FOODS = [
   { id: 'crushed', n: 'Crushed tomatoes, can', pack: 1, u: 'can', price: 3.5, pl: '1 can (400 g)', b: 1, m: [80, 4, 16, 0.5], where: 'pantry' },
   { id: 'lemon', n: 'Lemons', pack: 500, u: 'g', price: 4, pl: '500 g', b: 100, m: [29, 1.1, 9, 0.3], where: 'fresh', keeps: 14 },
   { id: 'garlic', n: 'Garlic', pack: 250, u: 'g', price: 4, pl: '250 g', b: 100, m: [149, 6.4, 33, 0.5], where: 'fresh', keeps: 30 },
+  { id: 'flour', n: 'Flour', pack: 1000, u: 'g', price: 4, pl: '1 kg', b: 100, m: [364, 10, 76, 1], where: 'pantry' },
   { id: 'oil', n: 'Cooking oil', pack: 1500, u: 'ml', price: 15, pl: '1.5 L', b: 100, m: [884, 0, 0, 100], where: 'pantry' },
   { id: 'whey', n: 'Whey protein', pack: 30, u: 'scoop', price: 220, pl: '~30 scoops (2 lb)', b: 1, m: [120, 24, 3, 1.5], where: 'pantry', optional: true }
 ];

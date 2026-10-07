@@ -25,7 +25,7 @@ export function vSettings() {
   <label class="f">Cook nights</label>${dayPick('cookDays', P.cookDays)}
   <label class="f" for="shopd">Shopping day (every 2 weeks)</label><select class="t" id="shopd" data-prof="shopDay">${DOWL.map((d, i) => `<option value="${i}" ${P.shopDay === i ? 'selected' : ''}>${d}</option>`).join('')}</select>
   <label class="f">Each cook night</label><div class="seg"><button data-act="cookmode" data-v="one" class="${P.cookMode !== 'two' ? 'on' : ''}">1 dish + no-cook dinners</button><button data-act="cookmode" data-v="two" class="${P.cookMode === 'two' ? 'on' : ''}">2 dishes</button></div>
-  <div style="margin-top:8px">${check('awaytoggle', (P.awayMeals || []).includes('4:dinner'), 'Thursday dinner is away (football in Makkah)')}</div>
+  <div style="margin-top:8px">${check('bigmeal', P.bigMeal !== false, 'One big cook night a month (oven + stove, 60–90 min, feeds 3 days). Other cook nights stay quick and easy.')}${check('awaytoggle', (P.awayMeals || []).includes('4:dinner'), 'Thursday dinner is away (football in Makkah)')}</div>
   <p class="small muted" style="margin:8px 0 0">Changes apply to the next plan you make. To redo the current one: Food > 2 weeks > New recipes.</p></div>
 
   <h2>Reminders</h2><div class="block"><p class="small">Adds repeating events with alerts to your iPhone Calendar. Tap the button, then <strong>Add All</strong>.</p>

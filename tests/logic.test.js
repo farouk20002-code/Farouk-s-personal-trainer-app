@@ -122,3 +122,15 @@ test('removed dishes are never planned', () => {
     }
   }
 });
+
+test('normal cook nights are easy; one big night a month', async () => {
+  const { isBig } = await import('../js/mealplan.js');
+  const S = fresh();
+  const first = generateCycle(S, '2026-11-07', 3, null), second = generateCycle(S, '2026-11-21', 4, first);
+  assert.equal(first.cooks.filter(k => k.big).length, 1, 'plan starting early in the month has the big night');
+  assert.equal(second.cooks.filter(k => k.big).length, 0, 'the other plan that month has none');
+  for (const k of first.cooks) assert.equal(isBig(recipe(S, k.a)), !!k.big);
+  for (const k of second.cooks) assert.ok(!isBig(recipe(S, k.a)), 'weeknight dishes are easy');
+  S.profile.bigMeal = false;
+  assert.equal(generateCycle(S, '2026-11-07', 3, null).cooks.filter(k => k.big).length, 0);
+});
