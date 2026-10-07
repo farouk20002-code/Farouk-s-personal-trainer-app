@@ -166,3 +166,12 @@ test('rings, streaks, records and levels', async () => {
   for (const [d, sid] of [['2026-10-11', 'LA'], ['2026-10-12', 'UA'], ['2026-10-13', 'LB'], ['2026-10-14', 'UB']]) getRec(T, d, sid, true).done = true;
   assert.equal(G.streaks(T, '2026-10-20').weeks, 1);
 });
+
+test('InBody reply from Claude is parsed and checked', async () => {
+  const { parseInbody } = await import('../js/status.js');
+  const r = parseInbody('Here:\n```json\n{"date":"2026-11-18","weight":83.9,"pbf":21.8,"smm":37.6,"bfm":18.3,"visceral":7,"whr":0.88,"score":73,"segMuscle":{"armL":92.1,"armR":93,"trunk":93.5,"legL":106,"legR":106.4},"segFat":{"armL":160,"armR":158,"trunk":190,"legL":150,"legR":151}}\n```');
+  assert.equal(r.errors.length, 0); assert.equal(r.data.weight, 83.9); assert.equal(r.data.date, '2026-11-18'); assert.equal(r.data.segMuscle.armR, 93);
+  const bad = parseInbody('{"weight":8000,"pbf":21}');
+  assert.equal(bad.data.weight, undefined); assert.ok(bad.errors.length >= 1);
+  assert.equal(parseInbody('no json').data, null);
+});

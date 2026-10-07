@@ -1,5 +1,5 @@
 import { app } from '../store.js';
-import { ui, today, seg, stat } from '../ui.js';
+import { ui, today, seg, stat, check } from '../ui.js';
 import { esc, addDays, diffDays, dow, fmtDate, fmtShort, DOWL, num, r1 } from '../util.js';
 import { SESSIONS, planWeek, calWeek, isPaused, phaseFor, weekInBlock, dayKind, doneInWeek, touched, DAYPLAN } from '../training.js';
 import { cycleFor, dayPlan, flexFactor, MEAL_LABEL } from '../mealplan.js';
@@ -114,10 +114,43 @@ function moreLog(S) {
   </details>`;
 }
 
+/* ---------- Everything coming up: setup checklist + next 7 days ---------- */
+function agenda(S, t) {
+  const tick = ok => `<span class="agtick ${ok ? 'ok' : ''}">${ok ? '✓' : ''}</span>`;
+  const row = (ok, label, attrs = '') => `<button class="agrow ${ok ? 'done' : ''}" ${attrs || 'disabled'}>${tick(ok)}<span>${label}</span></button>`;
+  let out = `<div class="block agenda">`;
+  if (t < S.profile.startDate) {
+    const p = S.prep || {};
+    const done = PREP.filter(([id]) => id === 'plan' ? (S.meal.cycles || []).length : p[id]).length;
+    out += `<div class="row between"><h3 style="margin:0">Setup checklist</h3><span class="small muted">${done}/${PREP.length} done</span></div><p class="small muted" style="margin:4px 0 6px">Tick them in any order.</p>`;
+    out += PREP.map(([id, l]) => id === 'plan' ? check('food', (S.meal.cycles || []).length, esc(l) + ' <span class="small muted">› Food</span>', 'data-sub="plan"') : check('prep', p[id], esc(l), `data-id="${id}"`)).join('');
+  }
+  out += `<h3 style="margin:${t < S.profile.startDate ? '16px' : '0'} 0 4px">Next 7 days</h3>`;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(t, i), wd = dow(d), dd = S.daily[d] || {}, items = [];
+    const started = d >= S.profile.startDate, paused = started && isPaused(S, calWeek(S, d));
+    const c = cycleFor(S, d);
+    if ((c && c.start === d) || (wd === S.profile.shopDay && !cycleFor(S, addDays(d, 2)))) items.push(c && c.start === d ? row(i === 0 && (c.got && Object.keys(c.got).length > 0), 'Shopping for 2 weeks', 'data-act="food" data-sub="shop"') : row(false, 'Shopping day: make the 2-week plan first', 'data-act="food" data-sub="plan"'));
+    if (started && WEIGH_DAYS.includes(wd)) items.push(row(num(dd.weight) != null, 'Weigh-in, morning'));
+    const kind = DAYPLAN[wd];
+    if (started && !paused && SESSIONS[kind]) items.push(row(!!S.logs[d]?.[kind]?.done, `${SESSIONS[kind].n}, 6am`, `data-act="opensession" data-sid="${kind}" data-date="${d}"`));
+    if (started && kind === 'THU') items.push(row(false, 'Football in Makkah tonight'));
+    const ck = cookToday(S, d);
+    if (ck) items.push(row(!!dd.cooked, `${ck.big ? 'Big cook night' : 'Cook'}: ${esc(ck.dishes.map(x => x.r.n).join(' + '))}`, 'data-act="food" data-sub="cook"'));
+    if (d === S.profile.startDate) items.push(row(false, 'Plan starts: week 1, intro week'));
+    if (started && wd === 6 && diffDays(S.profile.startDate, d) >= 6) items.push(row(S.checkins.some(x => x.date === d), 'Weekly check-in + waist', 'data-act="go" data-tab="progress"'));
+    if (!items.length) items.push(`<p class="small muted" style="margin:2px 0 0">${wd === 5 || wd === 6 ? 'Rest day, Makkah' : 'Nothing planned'}</p>`);
+    out += `<div class="agday"><div class="aghead">${i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : DOWL[wd]} <span class="muted">${fmtShort(d)}</span></div>${items.join('')}</div>`;
+  }
+  return out + `</div>`;
+}
+
 export function vToday() {
   const S = app.S, t = today(), hr = new Date().getHours(), p = progress(S, t);
   const rc = ringsClosed(S, t);
   let out = levelBar(p) + nextUp(S, t, hr);
+  out += `<button class="seeall" data-act="agenda" aria-expanded="${!!ui.agendaOpen}">${ui.agendaOpen ? 'Hide the list' : t < S.profile.startDate ? 'See the full setup checklist and next 7 days' : 'See everything coming up this week'} ${ui.agendaOpen ? '▴' : '▾'}</button>`;
+  if (ui.agendaOpen) out += agenda(S, t);
   if (rc.total) out += `<div class="sectionhead"><span>Today's rings</span><span class="muted">${rc.done}/${rc.total}</span></div>` + ringsRow(S, t);
   out += streakStrip(p.st) + goalCard(S, t) + weekSummary(S, t);
   const lastBackup = S.lastBackup, hasData = Object.keys(S.daily).length + Object.keys(S.logs).length > 3;

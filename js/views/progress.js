@@ -3,6 +3,7 @@ import { ui, today, stat } from '../ui.js';
 import { esc, num, r1, fmtShort, pkey, addDays } from '../util.js';
 import { planWeek, weekInBlock, allRecs, exName, history, stalled, EX } from '../training.js';
 import { stats } from '../adapt.js';
+import { CLAUDE_URL as CLAUDE } from './coach.js';
 import { progress, BADGES } from '../game.js';
 
 function weightChart(S) {
@@ -30,12 +31,27 @@ function inbodyBlock(S) {
   out += `<details><summary>Muscle and fat by body part</summary><p class="small muted">Muscle: 100% = normal for your height. Your arms and trunk are the priority; legs are already above normal.</p><div class="tablewrap"><table class="t"><tr><th></th><th class="num">L arm</th><th class="num">R arm</th><th class="num">Trunk</th><th class="num">L leg</th><th class="num">R leg</th></tr>
   ${S.inbody.filter(i => i.segMuscle).map(i => `<tr><td>Muscle ${fmtShort(i.date)}</td><td class="num">${seg(i.segMuscle, 'armL')}</td><td class="num">${seg(i.segMuscle, 'armR')}</td><td class="num">${seg(i.segMuscle, 'trunk')}</td><td class="num">${seg(i.segMuscle, 'legL')}</td><td class="num">${seg(i.segMuscle, 'legR')}</td></tr>`).join('')}
   ${S.inbody.filter(i => i.segFat).map(i => `<tr><td>Fat ${fmtShort(i.date)}</td><td class="num">${seg(i.segFat, 'armL')}</td><td class="num">${seg(i.segFat, 'armR')}</td><td class="num">${seg(i.segFat, 'trunk')}</td><td class="num">${seg(i.segFat, 'legL')}</td><td class="num">${seg(i.segFat, 'legR')}</td></tr>`).join('')}</table></div></details>
-  <details><summary>Add an InBody result</summary><div class="grid2">
-  ${[['ib_weight', 'Weight kg'], ['ib_pbf', 'Body fat %'], ['ib_smm', 'Skeletal muscle kg'], ['ib_bfm', 'Fat mass kg'], ['ib_visceral', 'Visceral level'], ['ib_whr', 'Waist-hip ratio'], ['ib_score', 'InBody score']].map(([id, l]) => `<div><label class="f" for="${id}">${l}</label><input class="t" id="${id}" inputmode="decimal"></div>`).join('')}</div>
-  <p class="small muted" style="margin:10px 0 0">Optional, from the body-part diagrams (the % numbers):</p><div class="grid3">
-  ${[['armL', 'L arm'], ['armR', 'R arm'], ['trunk', 'Trunk'], ['legL', 'L leg'], ['legR', 'R leg']].map(([k, l]) => `<div><label class="f" for="ibm_${k}">${l} muscle %</label><input class="t" id="ibm_${k}" inputmode="decimal"></div><div><label class="f" for="ibf_${k}">${l} fat %</label><input class="t" id="ibf_${k}" inputmode="decimal"></div>`).join('')}</div>
-  <button class="btn block-w" style="margin-top:12px" data-act="addinbody">Save InBody</button></details></div>`;
+  ${inbodyForm(S)}</div>`;
   return out;
+}
+
+function inbodyForm(S) {
+  const D = ui.ibDraft || {}, val = v => v == null ? '' : esc(v);
+  const segv = (g, k) => val(D[g]?.[k]);
+  return `<details ${ui.ibOpen ? 'open' : ''} data-ib="1"><summary>Add an InBody result</summary>
+  <div class="note"><strong>Quickest: from a photo of the sheet</strong>
+  <ol class="steps small" style="margin:6px 0"><li>Tap <strong>Copy request</strong>.</li><li>Tap <strong>Open Claude</strong>, attach your InBody photo, paste, send.</li><li>Copy Claude's whole reply, paste it below, tap <strong>Fill in</strong>. Check the numbers, then <strong>Save InBody</strong>.</li></ol>
+  <div class="row wrapflex"><button class="btn sm" data-act="copyinbody">Copy request</button><a class="btn sm" href="${CLAUDE}" target="_blank" rel="noopener">Open Claude</a></div>
+  ${ui.ibCopied != null ? `<p class="small" style="margin:8px 0 0">${ui.ibCopied ? 'Copied. Now attach the photo in Claude and paste.' : 'Copy didn\'t work. Press and hold the text in the Coach tab instead.'}</p>` : ''}
+  <textarea class="t" id="ibpaste" placeholder="Paste Claude's reply here" style="margin-top:8px;min-height:70px"></textarea>
+  <button class="btn primary block-w" style="margin-top:8px" data-act="importinbody">Fill in</button>
+  ${ui.ibMsg ? `<p class="small" style="margin:8px 0 0">${ui.ibMsg}</p>` : ''}</div>
+  <label class="f" for="ib_date">Scan date</label><input class="t" id="ib_date" type="date" value="${val(D.date || today())}">
+  <div class="grid2">
+  ${[['ib_weight', 'Weight kg', 'weight'], ['ib_pbf', 'Body fat %', 'pbf'], ['ib_smm', 'Skeletal muscle kg', 'smm'], ['ib_bfm', 'Fat mass kg', 'bfm'], ['ib_visceral', 'Visceral level', 'visceral'], ['ib_whr', 'Waist-hip ratio', 'whr'], ['ib_score', 'InBody score', 'score']].map(([id, l, k]) => `<div><label class="f" for="${id}">${l}</label><input class="t" id="${id}" inputmode="decimal" value="${val(D[k])}"></div>`).join('')}</div>
+  <p class="small muted" style="margin:10px 0 0">Body-part % numbers (optional):</p><div class="grid3">
+  ${[['armL', 'L arm'], ['armR', 'R arm'], ['trunk', 'Trunk'], ['legL', 'L leg'], ['legR', 'R leg']].map(([k, l]) => `<div><label class="f" for="ibm_${k}">${l} muscle %</label><input class="t" id="ibm_${k}" inputmode="decimal" value="${segv('segMuscle', k)}"></div><div><label class="f" for="ibf_${k}">${l} fat %</label><input class="t" id="ibf_${k}" inputmode="decimal" value="${segv('segFat', k)}"></div>`).join('')}</div>
+  <button class="btn primary block-w" style="margin-top:12px" data-act="addinbody">Save InBody</button></details>`;
 }
 
 function liftsBlock(S) {
