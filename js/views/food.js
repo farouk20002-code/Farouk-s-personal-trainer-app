@@ -2,7 +2,7 @@ import { app } from '../store.js';
 import { ui, today, stat, check } from '../ui.js';
 import { esc, addDays, fmtDate, fmtShort, DOWL, DOW, dow } from '../util.js';
 import { CREATINE_MONTH, PANTRY, KIT } from '../foods.js';
-import { cycleFor, cycleDates, dayPlan, flexFactor, cookSessions, preCookBoil, shoppingList, cycleCost, qtyLabel, itemLabel, recipe, recipeTotals, scaled, allRecipes, priceOf, foodsList, MEAL_LABEL, shopDayOnOrAfter, shopDayOnOrBefore, CYCLE_DAYS } from '../mealplan.js';
+import { isHidden, cycleFor, cycleDates, dayPlan, flexFactor, cookSessions, preCookBoil, shoppingList, cycleCost, qtyLabel, itemLabel, recipe, recipeTotals, scaled, allRecipes, priceOf, foodsList, MEAL_LABEL, shopDayOnOrAfter, shopDayOnOrBefore, CYCLE_DAYS } from '../mealplan.js';
 import { EAT_OUT } from './today.js';
 
 const SUBS = [['plan', '2 weeks'], ['cook', 'Cook'], ['shop', 'Shop'], ['recipes', 'Recipes'], ['budget', 'Budget']];
@@ -107,12 +107,12 @@ function subShop(S) {
 
 function subRecipes(S) {
   const all = allRecipes(S);
-  let out = `<p class="small muted">Everything the planner can choose from. Want new ones? Coach > New recipes: Claude writes them in a format the app can import.</p>`;
+  let out = `<p class="small muted">Tap a dish, then "Don't plan this dish again" to take it out of the rotation. Everything the planner can choose from. Want new ones? Coach > New recipes: Claude writes them in a format the app can import.</p>`;
   for (const kind of ['batch', 'fresh', 'nocook']) {
     out += `<h2>${KIND[kind]}</h2><div class="block">`;
     for (const r of all.filter(r => r.kind === kind)) {
       const tt = recipeTotals(S, r, 1);
-      out += `<div class="mealrow2"><button class="mealrow" data-act="recipe" data-id="${r.id}"><span class="small muted">${r.slots.map(s => MEAL_LABEL[s]).join(', ')}</span><span><strong>${esc(r.n)}</strong>${r.custom ? ' <span class="small muted">· from Claude</span>' : ''}</span><span class="small muted">${Math.round(tt.kcal)} kcal · ${Math.round(tt.p)} g</span></button>${r.custom ? `<button class="btn sm ghost" data-act="delrecipe" data-id="${r.id}" aria-label="Delete">✕</button>` : ''}</div>`;
+      out += `<div class="mealrow2"><button class="mealrow" data-act="recipe" data-id="${r.id}"><span class="small muted">${r.slots.map(s => MEAL_LABEL[s]).join(', ')}</span><span><strong style="${isHidden(S, r.id) ? 'text-decoration:line-through;opacity:.6' : ''}">${esc(r.n)}</strong>${isHidden(S, r.id) ? ' <span class="small muted">· removed</span>' : ''}${r.custom ? ' <span class="small muted">· from Claude</span>' : ''}</span><span class="small muted">${Math.round(tt.kcal)} kcal · ${Math.round(tt.p)} g</span></button>${r.custom ? `<button class="btn sm ghost" data-act="delrecipe" data-id="${r.id}" aria-label="Delete">✕</button>` : ''}</div>`;
     }
     out += `</div>`;
   }
@@ -147,6 +147,7 @@ export function vRecipe() {
   <div class="block"><div class="row between"><h3 style="margin:0">Ingredients</h3><div class="seg" style="width:160px">${[1, 2, 3].map(k => `<button data-act="portions" data-n="${k}" class="${k === n ? 'on' : ''}">×${k}</button>`).join('')}</div></div>
   <ul class="ing">${per.map(([id, q, flex]) => `<li>${esc(itemLabel(S, id, Math.round(q * n * 10) / 10))}${flex ? ' <span class="small muted">· scaled to your calories</span>' : ''}</li>`).join('')}</ul>
   <p class="small muted" style="margin:0">Plus spices: salt, pepper and what the steps mention. Medium spice at most.</p></div>
-  <div class="block"><h3>Steps</h3><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>`;
+  <div class="block"><h3>Steps</h3><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
+  ${isHidden(S, r.id) ? `<button class="btn block-w" data-act="hiderecipe" data-id="${r.id}">Put it back in the rotation</button>` : `<button class="btn block-w ghost" data-act="hiderecipe" data-id="${r.id}">Don't plan this dish again</button><p class="small muted" style="text-align:center">It gets swapped out of your plan from today on. Undo any time in Food > Recipes.</p>`}`;
 }
 export { check };

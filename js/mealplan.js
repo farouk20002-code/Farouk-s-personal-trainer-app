@@ -10,6 +10,7 @@ export const MEAL_SHARE = { breakfast: 0.27, lunch: 0.30, snack: 0.14, dinner: 0
 export const CYCLE_DAYS = 14;
 
 export const allRecipes = S => RECIPES.concat(S.customRecipes || []);
+export const isHidden = (S, id) => (S.hiddenRecipes || []).includes(id);
 export const recipe = (S, id) => allRecipes(S).find(r => r.id === id) || null;
 const F = (S, id) => food(id, S.customFoods);
 export const priceOf = (S, id) => S.prices[id] != null ? S.prices[id] : (F(S, id)?.price ?? 0);
@@ -48,7 +49,7 @@ export function cycleFor(S, k) { return (S.meal.cycles || []).find(c => k >= c.s
 
 /* ---------- Generation ---------- */
 function pools(S) {
-  const all = allRecipes(S);
+  const all = allRecipes(S).filter(r => !isHidden(S, r.id));
   return {
     // In 1-dish mode the dish is also that night's dinner, so it must suit both.
     batchLunch: all.filter(r => r.kind === 'batch' && r.slots.includes('lunch') && ((S.profile.cookMode || 'one') === 'two' || r.slots.includes('dinner'))),

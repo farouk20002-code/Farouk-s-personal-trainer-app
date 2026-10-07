@@ -111,3 +111,14 @@ test('calendar file is well formed', () => {
   assert.ok(ics.startsWith('BEGIN:VCALENDAR') && ics.endsWith('END:VCALENDAR'));
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, (ics.match(/END:VEVENT/g) || []).length);
 });
+
+test('removed dishes are never planned', () => {
+  const S = fresh(); S.hiddenRecipes = ['molokhia', 'tray', 'kofta', 'shawarma', 'sayadeya'];
+  for (const seed of [1, 2, 3, 4, 5, 6]) {
+    const c = generateCycle(S, '2026-10-10', seed, null);
+    for (const day of Object.values(c.days)) for (const sl of Object.values(day)) {
+      const id = sl.rid || c.cooks[sl.cook][sl.role];
+      assert.ok(!S.hiddenRecipes.includes(id), `planned removed dish ${id}`);
+    }
+  }
+});
