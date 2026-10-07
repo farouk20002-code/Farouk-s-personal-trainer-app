@@ -8,6 +8,7 @@ import { generateCycle, cycleFor, recipe, allRecipes, slotRid, isHidden, isBig, 
 import { statusText, recipePrompt, parseImport, QUESTIONS } from './status.js';
 import { buildICS } from './ics.js';
 import { addPhoto, listPhotos, deletePhoto, importPhotos } from './photos.js';
+import { seedDemo } from './demo.js';
 import { vToday, EAT_OUT, ACTS, dailyKey } from './views/today.js';
 import { vPlan, vSession, writeSet } from './views/train.js';
 import { vFood, vRecipe } from './views/food.js';
@@ -262,6 +263,8 @@ window.addEventListener('popstate', e => { ui.route = e.state?.route || { tab: '
 
 /* ---------- Boot ---------- */
 load();
+// Design preview only: fill the app with sample data the first time it opens.
+if (window.__DEMO__ && !app.S.demoSeeded && !Object.keys(app.S.logs).length) { try { seedDemo(app.S); flush(); } catch (e) { console.error(e); } }
 try { history.replaceState({ route: ui.route }, ''); } catch (e) { /* ignore */ }
 try { checkProgress(true); } catch (e) { console.error(e); }
 render(false);

@@ -1,7 +1,7 @@
 // Offline support: cache the app files, serve them from cache, refresh in the background.
-const CACHE = 'farouks-coach-v2';
+const CACHE = 'farouks-coach-v3';
 const FILES = ['./', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/apple-touch-icon.png', 'icons/icon-192.png', 'icons/icon-512.png',
-  'js/app.js', 'js/util.js', 'js/ui.js', 'js/store.js', 'js/training.js', 'js/foods.js', 'js/recipes.js', 'js/mealplan.js', 'js/adapt.js', 'js/status.js', 'js/ics.js', 'js/photos.js', 'js/game.js',
+  'js/app.js', 'js/util.js', 'js/ui.js', 'js/store.js', 'js/training.js', 'js/foods.js', 'js/recipes.js', 'js/mealplan.js', 'js/adapt.js', 'js/status.js', 'js/ics.js', 'js/photos.js', 'js/game.js', 'js/demo.js', 'js/views/ios.js',
   'js/views/today.js', 'js/views/train.js', 'js/views/food.js', 'js/views/progress.js', 'js/views/coach.js', 'js/views/settings.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });

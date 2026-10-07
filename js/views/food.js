@@ -1,16 +1,17 @@
 import { app } from '../store.js';
-import { ui, today, stat, check } from '../ui.js';
+import { ui, today, check } from '../ui.js';
 import { esc, addDays, fmtDate, fmtShort, DOWL, DOW, dow } from '../util.js';
 import { CREATINE_MONTH, PANTRY, KIT } from '../foods.js';
 import { isHidden, isBig, cycleFor, cycleDates, dayPlan, flexFactor, cookSessions, preCookBoil, shoppingList, cycleCost, qtyLabel, itemLabel, recipe, recipeTotals, scaled, allRecipes, priceOf, foodsList, MEAL_LABEL, shopDayOnOrAfter, shopDayOnOrBefore, CYCLE_DAYS } from '../mealplan.js';
 import { EAT_OUT } from './today.js';
+import { sec, cell, ICON, chev } from './ios.js';
 
-// Arabic name under the English one, for asking in the store.
-const arName = (f, inline) => f?.ar ? `${inline ? ' · ' : '<br>'}<span class="ar" lang="ar" dir="rtl">${esc(f.ar)}</span>` : '';
-const SUBS = [['plan', '2 weeks'], ['cook', 'Cook'], ['shop', 'Shop'], ['recipes', 'Recipes'], ['budget', 'Budget']];
-const KIND = { batch: 'Easy batch cook (weeknights)', big: 'Big cook night (once a month)', fresh: 'Fresh, quick', nocook: 'No cook' };
+const SUBS = [['plan', 'Plan'], ['cook', 'Cook'], ['shop', 'Shop'], ['recipes', 'Recipes'], ['budget', 'Budget']];
+const KIND = { batch: 'Weeknight batch', big: 'Big cook night', fresh: 'Breakfast, made fresh', nocook: 'No cook' };
+const MEAL_ICON = { breakfast: ['sunrise', 'orange'], lunch: ['box', 'blue'], snack: ['leaf', 'green'], dinner: ['moon', 'indigo'] };
+const food = (S, id) => foodsList(S).find(f => f.id === id);
+const ar = f => f?.ar ? `<span class="ar" lang="ar" dir="rtl">${esc(f.ar)}</span>` : '';
 
-// The cycle the Food tab is looking at: the one covering today, else the next upcoming one.
 export function activeCycle(S) {
   const t = today();
   return cycleFor(S, t) || (S.meal.cycles || []).filter(c => c.start > t).sort((a, b) => a.start < b.start ? -1 : 1)[0] || null;
@@ -24,134 +25,154 @@ const nextCycle = (S, c) => c ? (S.meal.cycles || []).find(x => x.start === addD
 
 export function vFood() {
   const S = app.S, sub = ui.foodTab;
-  let out = `<h2 style="margin-top:4px">Food</h2>
-  <div class="targets"><div class="target"><b>${S.profile.kcal}</b><span>calories</span></div><div class="target"><b>${S.profile.protein} g</b><span>protein, min</span></div><div class="target"><b>5 g</b><span>creatine</span></div></div>
-  <div class="subtabs">${SUBS.map(([k, l]) => `<button data-act="food" data-sub="${k}" class="${k === sub ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  let out = `<h1 class="lt">Food</h1>
+  <div class="segctl" role="tablist">${SUBS.map(([k, l]) => `<button role="tab" aria-selected="${k === sub}" data-act="food" data-sub="${k}" class="${k === sub ? 'on' : ''}">${l}</button>`).join('')}</div>`;
   out += ({ plan: subPlan, cook: subCook, shop: subShop, recipes: subRecipes, budget: subBudget }[sub] || subPlan)(S);
   return out;
 }
+const empty = (title, text, btn) => `<div class="emptyst"><div class="emptyic">${ICON.fork}</div><h2>${title}</h2><p>${text}</p>${btn}</div>`;
 
-function mealLine(S, c, d, m) {
-  return `<div class="mealrow2"><button class="mealrow" data-act="recipe" data-id="${m.r.id}"><span class="small muted">${MEAL_LABEL[m.meal]}</span><span><strong>${esc(m.r.n)}</strong>${m.cookDate ? ` <span class="small muted">· from ${DOW[dow(m.cookDate)]}'s cook</span>` : m.r.kind === 'nocook' ? ' <span class="small muted">· no cook</span>' : ''}</span><span class="small muted">${Math.round(m.tot.kcal)}</span></button><button class="btn sm ghost" data-act="swapmeal" data-c="${c.start}" data-d="${d}" data-m="${m.meal}" aria-label="Swap ${MEAL_LABEL[m.meal]}">⇄</button></div>`;
+/* ---------- Plan ---------- */
+function mealCell(S, c, d, m) {
+  const [ic, col] = MEAL_ICON[m.meal];
+  const note = m.cookDate ? `from ${DOWL[dow(m.cookDate)]}'s cook` : m.r.kind === 'nocook' ? 'no cook' : 'made fresh';
+  return `<div class="cell"><span class="ic ${col}">${ICON[ic]}</span><button class="cbody" data-act="recipe" data-id="${m.r.id}"><span class="ct">${esc(m.r.n)}</span><span class="cs">${MEAL_LABEL[m.meal]} · ${Math.round(m.tot.kcal)} kcal · ${note}</span></button><button class="iconbtn2" data-act="swapmeal" data-c="${c.start}" data-d="${d}" data-m="${m.meal}" aria-label="Swap ${MEAL_LABEL[m.meal]}">${ICON.swap}</button></div>`;
 }
-
 function subPlan(S) {
   const t = today(), c = activeCycle(S);
   if (!c) {
     const st = nextCycleStart(S);
-    return `<div class="block"><h3>Your 2-week meal plan</h3><p>The app picks recipes for 2 weeks, scales them to your calories, plans your cook nights (${S.profile.cookDays.map(d => DOWL[d]).join(' and ')}) and builds one shopping list.</p>
-    <p class="small muted">Starts ${fmtDate(st)} (shopping day). Change the days in Settings.</p><button class="btn primary block-w" data-act="gencycle" data-start="${st}">Make my 2-week plan</button></div>`;
+    return empty('Plan two weeks of food', `Recipes picked and scaled to ${S.profile.kcal} kcal, cook nights on ${S.profile.cookDays.map(d => DOWL[d]).join(' and ')}, one shopping list. Starts ${fmtDate(st)}.`, `<button class="btn fill" data-act="gencycle" data-start="${st}">Make My Plan</button>`);
   }
   const f = flexFactor(S, c), cost = cycleCost(S, c, f), nx = nextCycle(S, c);
   const end = addDays(c.start, CYCLE_DAYS - 1);
-  let out = `<div class="block"><div class="row between"><h3 style="margin:0">${fmtShort(c.start)} – ${fmtShort(end)}</h3><span class="small muted">~${cost.perDay.toFixed(0)} SAR/day</span></div>
-  <p class="small muted" style="margin:6px 0 0">Tap a meal for the recipe, ⇄ to swap it. Cook nights: ${c.cooks.map(k => DOW[dow(k.date)] + ' ' + fmtShort(k.date)).join(', ')}.</p></div>`;
+  const nextCook = c.cooks.find(k => k.date >= t);
+  let out = `<div class="summary3"><div><b>${fmtShort(c.start)}–${fmtShort(end)}</b><span>This plan</span></div><div><b>${cost.perDay.toFixed(0)} SAR</b><span>Per day</span></div><div><b>${nextCook ? (nextCook.date === t ? 'Tonight' : DOW[dow(nextCook.date)]) : '–'}</b><span>Next cook</span></div></div>`;
+  const summary = out; out = '';
+  let pastHtml = '', pastN = 0;
   for (const d of cycleDates(c)) {
     const dp = dayPlan(S, c, d, f);
-    if (!dp) { out += `<div class="dayhead muted small">${DOWL[dow(d)]} ${fmtShort(d)} · away</div>`; continue; }
+    if (!dp) continue;
     const cook = c.cooks.find(k => k.date === d);
-    out += `<div class="block tight ${d === t ? 'todayb' : ''}"><div class="row between"><h3 style="margin:0">${DOWL[dow(d)]} <span class="small muted">${fmtShort(d)}</span></h3><span class="small ${dp.t.p < dp.proteinTarget - 10 ? 'warn' : 'muted'}">${Math.round(dp.t.kcal)} kcal · ${Math.round(dp.t.p)} g</span></div>
-    ${cook ? `<p class="small" style="margin:4px 0">${cook.big ? '<span class="bigtag">Big cook night</span> ' : ''}<strong>Cook tonight.</strong> <button class="linkbtn" data-act="food" data-sub="cook">See the cook plan</button></p>` : ''}
-    ${dp.meals.map(m => mealLine(S, c, d, m)).join('')}</div>`;
+    const head = `${d === t ? 'Today' : DOWL[dow(d)]} · ${fmtShort(d)}`;
+    const trail = `${Math.round(dp.t.kcal)} kcal · ${Math.round(dp.t.p)} g protein`;
+    let rows = dp.meals.map(m => mealCell(S, c, d, m)).join('');
+    if (cook) rows += cell({ icon: ICON.flame, color: cook.big ? 'red' : 'orange', title: cook.big ? 'Big cook night' : 'Cook tonight', sub: 'Open the cook plan', act: 'data-act="food" data-sub="cook"', chevron: true });
+    const html = sec(head, rows, null, trail, d === t ? 'today' : '');
+    if (d < t) { pastHtml += html; pastN++; } else out += html;
   }
-  out += `<div class="row wrapflex" style="margin-top:8px">${nx ? '' : `<button class="btn primary" data-act="gencycle" data-start="${addDays(c.start, CYCLE_DAYS)}">Make the next 2 weeks</button>`}<button class="btn ghost" data-act="regen" data-c="${c.start}">New recipes for these 2 weeks</button></div>
-  <p class="small muted">Away days (Fri, Sat, Thursday dinner) aren't planned. Change that in Settings.</p>`;
-  if (nx) out += `<p class="small">Next plan ready from ${fmtDate(nx.start)}.</p>`;
+  out = summary + (pastN ? `<details class="earlier"><summary class="sechead"><span>Earlier this plan</span><span class="trail">${pastN} day${pastN > 1 ? 's' : ''} ›</span></summary>${pastHtml}</details>` : '') + out;
+  out += `<div class="stack">${nx ? `<p class="foot">Next plan ready from ${fmtDate(nx.start)}.</p>` : `<button class="btn fill" data-act="gencycle" data-start="${addDays(c.start, CYCLE_DAYS)}">Plan the Next 2 Weeks</button>`}<button class="btn tinted" data-act="regen" data-c="${c.start}">Pick New Recipes</button></div>
+  <p class="foot">Fridays, Saturdays and Thursday dinner are away days and aren't planned.</p>`;
   return out;
 }
 
-function cookBlock(S, s, open) {
-  return `<details class="block ${s.big ? 'bigb' : ''}" ${open ? 'open' : ''}><summary>${s.big ? '<span class="bigtag">Big cook night</span><br>' : ''}${DOWL[dow(s.date)]} ${fmtShort(s.date)} · ${s.dishes.map(x => esc(x.r.n)).join(' + ') || 'nothing to cook'}</summary>
-  ${s.big ? '<p class="small">Once a month: oven and stove, worth the effort. Put music on. It feeds you for the next 3 days.</p>' : ''}<p class="small muted">About ${s.minutes} min. ${s.boxes} box${s.boxes === 1 ? '' : 'es'} for the fridge${s.boil ? `. Also boil ${s.boil} eggs (10 min, cool, keep in the shell)` : ''}.</p>
-  ${s.dishes.map(x => `<h3 style="margin-top:12px">${esc(x.r.n)} × ${x.portions} portion${x.portions > 1 ? 's' : ''}</h3>
-    <p class="small muted">Eat: ${x.eats.map(([d, m]) => DOW[dow(d)] + ' ' + m).join(', ')}. ${esc(x.r.tool || '')}.</p>
-    <table class="t"><tr><th>Ingredient</th><th class="num">Total</th><th class="num">Per box</th></tr>${x.total.map(([id, q], i) => `<tr><td>${esc(foodsList(S).find(f => f.id === id)?.n || id)}${arName(foodsList(S).find(f => f.id === id))}</td><td class="num">${qtyLabel(S, id, q)}</td><td class="num">${qtyLabel(S, id, x.per[i][1])}</td></tr>`).join('')}</table>
-    <ol class="steps">${x.r.steps.map(st => `<li>${esc(st)}</li>`).join('')}</ol>`).join('')}
-  <p class="small muted" style="margin:8px 0 0">Cool everything before the lid goes on. Into the fridge within 2 hours. Reheat until steaming hot.</p></details>`;
+/* ---------- Cook ---------- */
+function cookCard(S, s, t) {
+  const when = s.date === t ? 'Tonight' : `${DOWL[dow(s.date)]} · ${fmtShort(s.date)}`;
+  let out = `<article class="cookcard ${s.big ? 'big' : ''}"><div class="eyebrow">${s.big ? 'Big cook night · ' : ''}${when}</div><h2 class="ctitle">${s.dishes.map(x => esc(x.r.n)).join(' + ')}</h2>
+  <div class="chips"><span class="chip2">${ICON.clock} ${s.minutes} min</span><span class="chip2">${ICON.box} ${s.boxes} box${s.boxes === 1 ? '' : 'es'}</span>${s.boil ? `<span class="chip2">${ICON.egg} Boil ${s.boil} eggs</span>` : ''}</div>`;
+  for (const x of s.dishes) {
+    out += `${s.dishes.length > 1 ? `<h3 class="dish">${esc(x.r.n)}</h3>` : ''}<p class="eats">${x.portions} portions for ${x.eats.map(([d, m]) => `${DOW[dow(d)]} ${m}`).join(', ')}</p>
+    <div class="list inset">${x.total.map(([id, q], i) => `<div class="cell"><div class="cbody static"><span class="ct">${esc(food(S, id)?.n || id)}</span>${ar(food(S, id))}</div><div class="ctrail"><b>${qtyLabel(S, id, q)}</b><span>${qtyLabel(S, id, x.per[i][1])} per box</span></div></div>`).join('')}</div>
+    <ol class="steps2">${x.r.steps.map(st => `<li>${esc(st)}</li>`).join('')}</ol>`;
+  }
+  const d = S.daily[s.date] || {};
+  out += `<p class="foot">Cool before the lid goes on. Fridge within 2 hours. Reheat until steaming hot.</p>
+  ${s.date === t ? (d.cooked ? `<div class="donepill">${ICON.check} Cooked</div>` : `<button class="btn fill" data-act="cooked" data-big="${s.big ? 1 : 0}">Done Cooking</button>`) : ''}</article>`;
+  return out;
 }
 function subCook(S) {
   const c = activeCycle(S);
-  if (!c) return `<p class="muted">Make your 2-week plan first.</p><button class="btn primary" data-act="food" data-sub="plan">Go to plan</button>`;
+  if (!c) return empty('No cook nights yet', 'Make your two-week plan and your cook nights appear here with exact quantities.', `<button class="btn fill" data-act="food" data-sub="plan">Go to Plan</button>`);
   const t = today(), f = flexFactor(S, c), sessions = cookSessions(S, c, f).filter(s => s.dishes.length);
+  const upcoming = sessions.filter(s => s.date >= t), past = sessions.filter(s => s.date < t);
+  let out = '';
   const pre = preCookBoil(S, c);
-  let out = `<p class="small muted">Two cook nights a week, one big batch each. Quantities are already scaled to your calories.</p>`;
-  if (pre) out += `<div class="block flat"><p class="small" style="margin:0"><strong>On shopping day:</strong> boil ${pre} eggs for the no-cook meals before the first cook night.</p></div>`;
-  const nextIdx = sessions.findIndex(s => s.date >= t);
-  sessions.forEach((s, i) => { out += cookBlock(S, s, i === nextIdx); });
+  if (pre && c.start >= t) out += `<p class="foot">On shopping day, boil ${pre} eggs for the no-cook meals.</p>`;
+  if (upcoming.length) out += cookCard(S, upcoming[0], t);
+  const rest = upcoming.slice(1);
   const nx = nextCycle(S, c);
-  if (nx) { out += `<h2>Next 2 weeks</h2>`; cookSessions(S, nx).filter(s => s.dishes.length).forEach(s => { out += cookBlock(S, s, false); }); }
+  const later = rest.concat(nx ? cookSessions(S, nx).filter(s => s.dishes.length) : []);
+  if (later.length) out += sec('Coming up', later.map(s => cell({ icon: ICON.flame, color: s.big ? 'red' : 'orange', title: s.dishes.map(x => x.r.n).join(' + '), sub: `${DOWL[dow(s.date)]} ${fmtShort(s.date)} · ${s.minutes} min${s.big ? ' · big night' : ''}`, act: `data-act="recipe" data-id="${s.dishes[0].r.id}"`, chevron: true })).join(''));
+  if (past.length) out += sec('Done this plan', past.map(s => cell({ icon: ICON.check, color: 'gray', title: s.dishes.map(x => x.r.n).join(' + '), sub: `${DOWL[dow(s.date)]} ${fmtShort(s.date)}`, act: `data-act="recipe" data-id="${s.dishes[0].r.id}"`, chevron: true })).join(''));
   return out;
 }
 
+/* ---------- Shop ---------- */
 function subShop(S) {
   const t = today(); let c = activeCycle(S);
   const nx = nextCycle(S, c);
   if (nx && (t >= addDays(nx.start, -3))) c = nx;
-  if (!c) return `<p class="muted">Make your 2-week plan first.</p><button class="btn primary" data-act="food" data-sub="plan">Go to plan</button>`;
+  if (!c) return empty('Nothing to buy yet', 'Make your two-week plan and the shopping list builds itself, with Arabic names for every item.', `<button class="btn fill" data-act="food" data-sub="plan">Go to Plan</button>`);
   const f = flexFactor(S, c), list = shoppingList(S, c, f), first = (S.meal.cycles || [])[0]?.start === c.start;
   const where = { freezer: 'Freezer', fridge: 'Fridge', fresh: 'Fresh', pantry: 'Cupboard' };
   c.got = c.got || {};
-  let out = `<div class="block"><div class="row between"><h3 style="margin:0">Shop ${fmtDate(c.start)}</h3><b>${Math.round(list.total)} SAR</b></div><p class="small muted" style="margin:6px 0 0">For ${fmtShort(c.start)} – ${fmtShort(addDays(c.start, CYCLE_DAYS - 1))}.</p>
-  <details style="margin:8px 0 0"><summary class="small">How to read this list</summary><ul class="small" style="margin:0;padding-left:18px"><li><strong>"need …"</strong> is how much your 2 weeks of meals use. You don't buy that number.</li><li><strong>The right side</strong> (e.g. 1 × 900 g, 10 SAR) is exactly what to put in the basket. Leftovers stay for the next plan.</li><li>Tap the box when it's in the basket. Tap <strong>have it</strong> for things still at home and the total drops.</li><li>The Arabic name under each item is for asking someone in the store.</li></ul></details></div>`;
-  let cur = '';
-  out += `<div class="block">`;
-  for (const r of list.rows) {
-    if (r.f.where !== cur) { cur = r.f.where; out += `<div class="dayhead small muted">${where[cur]}</div>`; }
-    out += `<div class="shoprow ${c.got[r.id] ? 'got' : ''}"><button class="box ${c.got[r.id] ? 'on' : ''}" data-act="gotit" data-c="${c.start}" data-id="${r.id}" aria-label="In the basket">${c.got[r.id] ? '✓' : ''}</button>
-      <span><strong>${esc(r.f.n)}</strong>${arName(r.f)}${r.f.desc ? `<br><span class="small muted">${esc(r.f.desc)}</span>` : ''}<br><span class="small muted">need ${qtyLabel(S, r.id, r.q)}${r.shortLife && r.q > r.w1 ? ` (${qtyLabel(S, r.id, r.w1)} in week 1)` : ''}</span></span>
-      <span class="num">${r.have ? '<span class="small muted">at home</span>' : `${r.packs} × ${esc(r.f.pl)}<br><span class="small muted">${Math.round(r.cost)} SAR</span>`}<br><button class="linkbtn" data-act="haveit" data-c="${c.start}" data-id="${r.id}">${r.have ? 'need it' : 'have it'}</button></span></div>`;
+  const toBuy = list.rows.filter(r => !r.have), got = toBuy.filter(r => c.got[r.id]).length;
+  let out = `<div class="shophead"><div><div class="eyebrow">Shop ${fmtDate(c.start)}</div><div class="bignum">${Math.round(list.total)} <small>SAR</small></div></div><div class="ringmini" style="--p:${toBuy.length ? got / toBuy.length : 0}"><span>${got}/${toBuy.length}</span></div></div>
+  <p class="foot">The right side is exactly what goes in the basket. "Need" is what your meals use, so leftovers carry over.</p>`;
+  for (const w of ['freezer', 'fridge', 'fresh', 'pantry']) {
+    const rows = list.rows.filter(r => r.f.where === w); if (!rows.length) continue;
+    out += sec(where[w], rows.map(r => {
+      const on = !!c.got[r.id];
+      return `<div class="cell shop ${on ? 'got' : ''} ${r.have ? 'have' : ''}"><button class="rcheck ${on ? 'on' : ''}" data-act="gotit" data-c="${c.start}" data-id="${r.id}" aria-label="${esc(r.f.n)} in the basket" aria-pressed="${on}">${on ? ICON.checkSm : ''}</button>
+      <div class="cbody static"><span class="ct">${esc(r.f.n)}</span>${ar(r.f)}${r.f.desc ? `<span class="cs">${esc(r.f.desc)}</span>` : ''}<span class="cs">Need ${qtyLabel(S, r.id, r.q)}${r.shortLife && r.q > r.w1 ? `, ${qtyLabel(S, r.id, r.w1)} in week 1` : ''}</span></div>
+      <div class="ctrail">${r.have ? '<b class="muted2">At home</b>' : `<b>${r.packs} × ${esc(r.f.pl)}</b><span>${Math.round(r.cost)} SAR</span>`}<button class="linkbtn2" data-act="haveit" data-c="${c.start}" data-id="${r.id}">${r.have ? 'Need it' : 'Have it'}</button></div></div>`;
+    }).join(''));
   }
-  out += `</div>`;
-  if (list.rows.some(r => r.id === 'veg')) out += `<div class="block flat"><p class="small" style="margin:0"><strong>Tip:</strong> grab a second bag of frozen mixed vegetables (~10 SAR) and add a handful (about 80 g) to any lunch box when you reheat it. More fibre, keeps you full longer. It's the cheapest upgrade to this plan.</p></div>`;
+  if (list.rows.some(r => r.id === 'veg')) out += `<p class="foot">Tip: a second bag of frozen mixed vegetables (~10 SAR) and a handful in each lunch box adds fibre and keeps you full.</p>`;
   const shortOnes = list.rows.filter(r => r.shortLife && r.q > r.w1 && !r.have);
-  if (shortOnes.length) out += `<div class="block flat"><p class="small" style="margin:0"><strong>Fresh stuff for week 2:</strong> ${shortOnes.map(r => esc(r.f.n.toLowerCase())).join(', ')} only last about a week. Buy the full amount and use the oldest first, or grab week 2's share on the way home any day. Freeze half the bread now.</p></div>`;
-  if (first) out += `<details class="block"><summary>First shop only: spices and kit</summary>${PANTRY.concat(KIT).map(([n, p, ar]) => stat(`${esc(n)}${ar ? `<br><span class="ar" lang="ar" dir="rtl">${esc(ar)}</span>` : ''}`, p ? '~' + p + ' SAR' : '')).join('')}<p class="small muted" style="margin:8px 0 0">Plus creatine monohydrate (~${CREATINE_MONTH} SAR a month).</p></details>`;
+  if (shortOnes.length) out += `<p class="foot">${shortOnes.map(r => esc(r.f.n.split(',')[0])).join(', ')} last about a week. Use the oldest first or top up on the way home in week 2. Freeze half the bread.</p>`;
+  if (first) out += sec('First shop only', PANTRY.concat(KIT).map(([n, p, a]) => `<div class="cell"><div class="cbody static"><span class="ct">${esc(n)}</span>${a ? `<span class="ar" lang="ar" dir="rtl">${esc(a)}</span>` : ''}</div><div class="ctrail"><span>${p ? '~' + p + ' SAR' : ''}</span></div></div>`).join(''), `Plus creatine monohydrate, about ${CREATINE_MONTH} SAR a month.`);
   return out;
 }
 
+/* ---------- Recipes ---------- */
 function subRecipes(S) {
   const all = allRecipes(S);
-  let out = `<p class="small muted">Tap a dish, then "Don't plan this dish again" to take it out of the rotation. Everything the planner can choose from. Want new ones? Coach > New recipes: Claude writes them in a format the app can import.</p>`;
+  let out = `<p class="foot">Tap a dish to see it. Dishes you remove never get planned again.</p>`;
   for (const kind of ['batch', 'big', 'fresh', 'nocook']) {
-    out += `<h2>${KIND[kind]}</h2><div class="block">`;
-    for (const r of all.filter(r => kind === 'big' ? r.kind === 'batch' && isBig(r) : r.kind === kind && !(kind === 'batch' && isBig(r)))) {
-      const tt = recipeTotals(S, r, 1);
-      out += `<div class="mealrow2"><button class="mealrow" data-act="recipe" data-id="${r.id}"><span class="small muted">${r.slots.map(s => MEAL_LABEL[s]).join(', ')}</span><span><strong style="${isHidden(S, r.id) ? 'text-decoration:line-through;opacity:.6' : ''}">${esc(r.n)}</strong>${isHidden(S, r.id) ? ' <span class="small muted">· removed</span>' : ''}${r.custom ? ' <span class="small muted">· from Claude</span>' : ''}</span><span class="small muted">${Math.round(tt.kcal)} kcal · ${Math.round(tt.p)} g</span></button>${r.custom ? `<button class="btn sm ghost" data-act="delrecipe" data-id="${r.id}" aria-label="Delete">✕</button>` : ''}</div>`;
-    }
-    out += `</div>`;
+    const list = all.filter(r => kind === 'big' ? r.kind === 'batch' && isBig(r) : r.kind === kind && !(kind === 'batch' && isBig(r)));
+    out += sec(KIND[kind], list.map(r => {
+      const tt = recipeTotals(S, r, 1), hidden = isHidden(S, r.id);
+      return cell({ icon: ICON[kind === 'big' ? 'flame' : kind === 'fresh' ? 'sunrise' : kind === 'nocook' ? 'leaf' : 'box'], color: hidden ? 'gray' : kind === 'big' ? 'red' : kind === 'fresh' ? 'orange' : kind === 'nocook' ? 'green' : 'blue', title: r.n + (r.custom ? ' · from Claude' : ''), sub: hidden ? 'Removed from rotation' : `${Math.round(tt.kcal)} kcal · ${Math.round(tt.p)} g protein${r.time ? ` · ${r.time} min` : ''}`, act: `data-act="recipe" data-id="${r.id}"`, chevron: true, dim: hidden });
+    }).join(''));
   }
+  out += `<p class="foot">Want new dishes? Coach › New recipes from Claude.</p>`;
   return out;
 }
 
+/* ---------- Budget ---------- */
 function subBudget(S) {
   const P = S.profile, c = activeCycle(S), cost = c ? cycleCost(S, c) : null;
   const homeDaysMonth = Math.round(P.homeDays.length * 30 / 7);
   const planMonth = cost ? cost.perDay * homeDaysMonth : 0, left = P.budget - planMonth - CREATINE_MONTH;
-  let out = `<div class="block"><h3>Budget this month</h3>
-  <label class="f" for="bud">Food budget (SAR / month)</label><input class="t" id="bud" inputmode="numeric" data-prof="budget" value="${P.budget}">
-  <div style="margin-top:12px">${cost ? stat(`Home food (${homeDaysMonth} days × ${cost.perDay.toFixed(1)} SAR)`, Math.round(planMonth) + ' SAR') : stat('Home food', 'make a plan first')}${stat('Creatine', CREATINE_MONTH + ' SAR')}${stat('Left for eating out', `<span style="color:${left < 0 ? 'var(--red)' : 'var(--green)'}">${Math.round(left)} SAR</span>`)}</div>
-  <p class="small muted" style="margin:8px 0 0">${left < 0 ? 'Over budget. Swap tuna meals for eggs or ful, or update prices from كيو.' : `About ${Math.max(0, Math.floor(left / 35))} cheap meals out a month.`} The first shop costs more: rice, oil and spices last 2–3 months.</p></div>
-  <h2>Eating out: safe orders</h2><div class="block">${EAT_OUT.map(([n, k]) => stat(esc(n), `<span style="color:${k >= 1000 ? 'var(--red)' : 'inherit'}">~${k} kcal</span>`)).join('')}<p class="small muted" style="margin:8px 0 0">Rough numbers. Log it in Today so the check-in knows.</p></div>
-  <details class="block"><summary>Prices and protein per riyal</summary><p class="small muted">Estimates. Update them from كيو and everything recalculates. Higher protein per riyal is better value.</p><div class="tablewrap"><table class="t"><tr><th>Item</th><th class="num">SAR</th><th class="num">g protein / SAR</th></tr>`;
+  const row = (l, v, cls = '') => `<div class="cell"><div class="cbody static"><span class="ct">${l}</span></div><div class="ctrail"><b class="${cls}">${v}</b></div></div>`;
+  let out = sec('This month', `<div class="cell"><label class="cbody static" for="bud"><span class="ct">Food budget</span></label><div class="ctrail"><input class="inline" id="bud" inputmode="numeric" data-prof="budget" value="${P.budget}"> <span>SAR</span></div></div>`
+    + (cost ? row(`Home food, ${homeDaysMonth} days`, Math.round(planMonth) + ' SAR') : row('Home food', 'Make a plan first'))
+    + row('Creatine', CREATINE_MONTH + ' SAR') + row('Left for eating out', Math.round(left) + ' SAR', left < 0 ? 'neg' : 'pos'),
+    left < 0 ? 'Over budget. Swap tuna meals for eggs or ful, or update prices.' : `About ${Math.max(0, Math.floor(left / 35))} cheap meals out a month. The first shop costs more: rice, oil and spices last months.`);
+  out += sec('Eating out', EAT_OUT.map(([n, k]) => row(esc(n), `~${k} kcal`, k >= 1000 ? 'neg' : '')).join(''), 'Rough numbers. Log meals out in Today so the check-in knows.');
   const ranked = foodsList(S).map(f => ({ f, ppr: f.m[1] * (f.pack / f.b) / (priceOf(S, f.id) || 1) })).sort((a, b) => b.ppr - a.ppr);
-  for (const { f, ppr } of ranked) out += `<tr><td>${esc(f.n)}${arName(f)}<br><span class="small muted">${esc(f.pl)}</span></td><td class="num"><input class="price" inputmode="decimal" data-price="${f.id}" value="${priceOf(S, f.id)}" aria-label="${esc(f.n)} price"></td><td class="num">${ppr.toFixed(1)}</td></tr>`;
-  out += `</table></div></details>
-  <h2>Supplements</h2><div class="block"><p><strong>Creatine monohydrate, 5 g a day,</strong> every day including weekends, any time. Plain monohydrate only.</p><p><strong>Whey:</strong> only if its protein per riyal beats your foods in the table above.</p><p style="margin:0"><strong>Skip:</strong> fat burners, BCAAs, test boosters, "shred" products. Coffee before the gym is fine.</p></div>`;
+  out += sec('Prices · best protein per riyal first', ranked.map(({ f, ppr }) => `<div class="cell"><div class="cbody static"><span class="ct">${esc(f.n)}</span><span class="cs">${esc(f.pl)} · ${ppr.toFixed(1)} g protein per SAR</span></div><div class="ctrail"><input class="inline" inputmode="decimal" data-price="${f.id}" value="${priceOf(S, f.id)}" aria-label="${esc(f.n)} price"></div></div>`).join(''), 'Edit a price and every plan and total updates.');
+  out += sec('Supplements', `<div class="cell"><div class="cbody static"><span class="ct">Creatine monohydrate</span><span class="cs">5 g every day, any time. Plain monohydrate only.</span></div></div><div class="cell"><div class="cbody static"><span class="ct">Whey</span><span class="cs">Only if it beats your foods on protein per riyal.</span></div></div><div class="cell"><div class="cbody static"><span class="ct">Skip</span><span class="cs">Fat burners, BCAAs, test boosters.</span></div></div>`);
   return out;
 }
 
+/* ---------- Recipe detail ---------- */
 export function vRecipe() {
   const S = app.S, r = recipe(S, ui.route.id);
-  if (!r) return `<button class="btn sm ghost" data-act="back">← Back</button><p>Recipe not found.</p>`;
+  if (!r) return `<button class="navback" data-act="back">${chev('left')} Back</button><p>Recipe not found.</p>`;
   const c = activeCycle(S), f = c ? flexFactor(S, c) : 1, n = ui.route.n || 1;
   const per = scaled(S, r, f), tt = recipeTotals(S, r, f);
-  return `<button class="btn sm ghost" data-act="back">← Back</button><h1 class="day" style="font-size:40px;margin-top:10px">${esc(r.n)}</h1>
-  <p class="muted">${KIND[r.kind === 'batch' && isBig(r) ? 'big' : r.kind]}${r.time ? ` · ${r.time} min` : ''}${r.tool ? ` · ${esc(r.tool)}` : ''}${r.keeps ? ` · keeps ${r.keeps} days` : ''}</p>
-  <div class="targets"><div class="target"><b>${Math.round(tt.kcal)}</b><span>kcal / portion</span></div><div class="target"><b>${Math.round(tt.p)} g</b><span>protein</span></div><div class="target"><b>${tt.cost.toFixed(1)}</b><span>SAR</span></div></div>
-  <div class="block"><div class="row between"><h3 style="margin:0">Ingredients</h3><div class="seg" style="width:160px">${[1, 2, 3].map(k => `<button data-act="portions" data-n="${k}" class="${k === n ? 'on' : ''}">×${k}</button>`).join('')}</div></div>
-  <ul class="ing">${per.map(([id, q, flex]) => `<li>${esc(itemLabel(S, id, Math.round(q * n * 10) / 10))}${arName(foodsList(S).find(f => f.id === id), true)}${flex ? ' <span class="small muted">· scaled to your calories</span>' : ''}</li>`).join('')}</ul>
-  <p class="small muted" style="margin:0">Plus spices: salt, pepper and what the steps mention. Medium spice at most.</p></div>
-  <div class="block"><h3>Steps</h3><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
-  ${isHidden(S, r.id) ? `<button class="btn block-w" data-act="hiderecipe" data-id="${r.id}">Put it back in the rotation</button>` : `<button class="btn block-w ghost" data-act="hiderecipe" data-id="${r.id}">Don't plan this dish again</button><p class="small muted" style="text-align:center">It gets swapped out of your plan from today on. Undo any time in Food > Recipes.</p>`}`;
+  const kind = KIND[r.kind === 'batch' && isBig(r) ? 'big' : r.kind];
+  return `<button class="navback" data-act="back">${chev('left')} Food</button>
+  <div class="eyebrow" style="margin-top:6px">${kind}</div><h1 class="lt" style="margin-top:2px">${esc(r.n)}</h1>
+  <div class="summary3"><div><b>${Math.round(tt.kcal)}</b><span>kcal / portion</span></div><div><b>${Math.round(tt.p)} g</b><span>Protein</span></div><div><b>${r.time || '–'}<small> min</small></b><span>${esc(r.tool || 'Time')}</span></div></div>
+  <div class="sechead"><span>Ingredients</span><div class="segctl small">${[1, 2, 3].map(k => `<button data-act="portions" data-n="${k}" class="${k === n ? 'on' : ''}" aria-label="${k} portions">×${k}</button>`).join('')}</div></div>
+  <div class="list">${per.map(([id, q, flex]) => `<div class="cell"><div class="cbody static"><span class="ct">${esc(food(S, id)?.n || id)}</span>${ar(food(S, id))}${flex ? '<span class="cs">Scaled to your calories</span>' : ''}</div><div class="ctrail"><b>${qtyLabel(S, id, Math.round(q * n * 10) / 10)}</b></div></div>`).join('')}</div>
+  <p class="foot">Plus salt, pepper and the spices in the steps. Medium spice at most.${r.keeps ? ` Keeps ${r.keeps} days in the fridge.` : ''}</p>
+  <div class="sechead"><span>Steps</span></div><ol class="steps2 card">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+  <div class="stack">${isHidden(S, r.id) ? `<button class="btn tinted" data-act="hiderecipe" data-id="${r.id}">Put Back in Rotation</button>` : `<button class="btn plain destructive" data-act="hiderecipe" data-id="${r.id}">Don't Plan This Dish Again</button>`}</div>`;
 }
-export { check };
+export { check, itemLabel };
