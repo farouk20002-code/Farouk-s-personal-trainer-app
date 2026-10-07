@@ -5,6 +5,8 @@ import { CREATINE_MONTH, PANTRY, KIT } from '../foods.js';
 import { isHidden, isBig, cycleFor, cycleDates, dayPlan, flexFactor, cookSessions, preCookBoil, shoppingList, cycleCost, qtyLabel, itemLabel, recipe, recipeTotals, scaled, allRecipes, priceOf, foodsList, MEAL_LABEL, shopDayOnOrAfter, shopDayOnOrBefore, CYCLE_DAYS } from '../mealplan.js';
 import { EAT_OUT } from './today.js';
 
+// Arabic name under the English one, for asking in the store.
+const arName = (f, inline) => f?.ar ? `${inline ? ' · ' : '<br>'}<span class="ar" lang="ar" dir="rtl">${esc(f.ar)}</span>` : '';
 const SUBS = [['plan', '2 weeks'], ['cook', 'Cook'], ['shop', 'Shop'], ['recipes', 'Recipes'], ['budget', 'Budget']];
 const KIND = { batch: 'Easy batch cook (weeknights)', big: 'Big cook night (once a month)', fresh: 'Fresh, quick', nocook: 'No cook' };
 
@@ -63,7 +65,7 @@ function cookBlock(S, s, open) {
   ${s.big ? '<p class="small">Once a month: oven and stove, worth the effort. Put music on. It feeds you for the next 3 days.</p>' : ''}<p class="small muted">About ${s.minutes} min. ${s.boxes} box${s.boxes === 1 ? '' : 'es'} for the fridge${s.boil ? `. Also boil ${s.boil} eggs (10 min, cool, keep in the shell)` : ''}.</p>
   ${s.dishes.map(x => `<h3 style="margin-top:12px">${esc(x.r.n)} × ${x.portions} portion${x.portions > 1 ? 's' : ''}</h3>
     <p class="small muted">Eat: ${x.eats.map(([d, m]) => DOW[dow(d)] + ' ' + m).join(', ')}. ${esc(x.r.tool || '')}.</p>
-    <table class="t"><tr><th>Ingredient</th><th class="num">Total</th><th class="num">Per box</th></tr>${x.total.map(([id, q], i) => `<tr><td>${esc(foodsList(S).find(f => f.id === id)?.n || id)}</td><td class="num">${qtyLabel(S, id, q)}</td><td class="num">${qtyLabel(S, id, x.per[i][1])}</td></tr>`).join('')}</table>
+    <table class="t"><tr><th>Ingredient</th><th class="num">Total</th><th class="num">Per box</th></tr>${x.total.map(([id, q], i) => `<tr><td>${esc(foodsList(S).find(f => f.id === id)?.n || id)}${arName(foodsList(S).find(f => f.id === id))}</td><td class="num">${qtyLabel(S, id, q)}</td><td class="num">${qtyLabel(S, id, x.per[i][1])}</td></tr>`).join('')}</table>
     <ol class="steps">${x.r.steps.map(st => `<li>${esc(st)}</li>`).join('')}</ol>`).join('')}
   <p class="small muted" style="margin:8px 0 0">Cool everything before the lid goes on. Into the fridge within 2 hours. Reheat until steaming hot.</p></details>`;
 }
@@ -89,19 +91,21 @@ function subShop(S) {
   const f = flexFactor(S, c), list = shoppingList(S, c, f), first = (S.meal.cycles || [])[0]?.start === c.start;
   const where = { freezer: 'Freezer', fridge: 'Fridge', fresh: 'Fresh', pantry: 'Cupboard' };
   c.got = c.got || {};
-  let out = `<div class="block"><div class="row between"><h3 style="margin:0">Shop ${fmtDate(c.start)}</h3><b>${Math.round(list.total)} SAR</b></div><p class="small muted" style="margin:6px 0 0">For ${fmtShort(c.start)} – ${fmtShort(addDays(c.start, CYCLE_DAYS - 1))}. Tick items as they go in the basket. Tap "have it" for things you still have at home and the total drops.</p></div>`;
+  let out = `<div class="block"><div class="row between"><h3 style="margin:0">Shop ${fmtDate(c.start)}</h3><b>${Math.round(list.total)} SAR</b></div><p class="small muted" style="margin:6px 0 0">For ${fmtShort(c.start)} – ${fmtShort(addDays(c.start, CYCLE_DAYS - 1))}.</p>
+  <details style="margin:8px 0 0"><summary class="small">How to read this list</summary><ul class="small" style="margin:0;padding-left:18px"><li><strong>"need …"</strong> is how much your 2 weeks of meals use. You don't buy that number.</li><li><strong>The right side</strong> (e.g. 1 × 900 g, 10 SAR) is exactly what to put in the basket. Leftovers stay for the next plan.</li><li>Tap the box when it's in the basket. Tap <strong>have it</strong> for things still at home and the total drops.</li><li>The Arabic name under each item is for asking someone in the store.</li></ul></details></div>`;
   let cur = '';
   out += `<div class="block">`;
   for (const r of list.rows) {
     if (r.f.where !== cur) { cur = r.f.where; out += `<div class="dayhead small muted">${where[cur]}</div>`; }
     out += `<div class="shoprow ${c.got[r.id] ? 'got' : ''}"><button class="box ${c.got[r.id] ? 'on' : ''}" data-act="gotit" data-c="${c.start}" data-id="${r.id}" aria-label="In the basket">${c.got[r.id] ? '✓' : ''}</button>
-      <span><strong>${esc(r.f.n)}</strong><br><span class="small muted">need ${qtyLabel(S, r.id, r.q)}${r.shortLife && r.q > r.w1 ? ` (${qtyLabel(S, r.id, r.w1)} in week 1)` : ''}</span></span>
+      <span><strong>${esc(r.f.n)}</strong>${arName(r.f)}${r.f.desc ? `<br><span class="small muted">${esc(r.f.desc)}</span>` : ''}<br><span class="small muted">need ${qtyLabel(S, r.id, r.q)}${r.shortLife && r.q > r.w1 ? ` (${qtyLabel(S, r.id, r.w1)} in week 1)` : ''}</span></span>
       <span class="num">${r.have ? '<span class="small muted">at home</span>' : `${r.packs} × ${esc(r.f.pl)}<br><span class="small muted">${Math.round(r.cost)} SAR</span>`}<br><button class="linkbtn" data-act="haveit" data-c="${c.start}" data-id="${r.id}">${r.have ? 'need it' : 'have it'}</button></span></div>`;
   }
   out += `</div>`;
+  if (list.rows.some(r => r.id === 'veg')) out += `<div class="block flat"><p class="small" style="margin:0"><strong>Tip:</strong> grab a second bag of frozen mixed vegetables (~10 SAR) and add a handful (about 80 g) to any lunch box when you reheat it. More fibre, keeps you full longer. It's the cheapest upgrade to this plan.</p></div>`;
   const shortOnes = list.rows.filter(r => r.shortLife && r.q > r.w1 && !r.have);
   if (shortOnes.length) out += `<div class="block flat"><p class="small" style="margin:0"><strong>Fresh stuff for week 2:</strong> ${shortOnes.map(r => esc(r.f.n.toLowerCase())).join(', ')} only last about a week. Buy the full amount and use the oldest first, or grab week 2's share on the way home any day. Freeze half the bread now.</p></div>`;
-  if (first) out += `<details class="block"><summary>First shop only: spices and kit</summary>${PANTRY.concat(KIT).map(([n, p]) => stat(esc(n), p ? '~' + p + ' SAR' : '')).join('')}<p class="small muted" style="margin:8px 0 0">Plus creatine monohydrate (~${CREATINE_MONTH} SAR a month).</p></details>`;
+  if (first) out += `<details class="block"><summary>First shop only: spices and kit</summary>${PANTRY.concat(KIT).map(([n, p, ar]) => stat(`${esc(n)}${ar ? `<br><span class="ar" lang="ar" dir="rtl">${esc(ar)}</span>` : ''}`, p ? '~' + p + ' SAR' : '')).join('')}<p class="small muted" style="margin:8px 0 0">Plus creatine monohydrate (~${CREATINE_MONTH} SAR a month).</p></details>`;
   return out;
 }
 
@@ -130,7 +134,7 @@ function subBudget(S) {
   <h2>Eating out: safe orders</h2><div class="block">${EAT_OUT.map(([n, k]) => stat(esc(n), `<span style="color:${k >= 1000 ? 'var(--red)' : 'inherit'}">~${k} kcal</span>`)).join('')}<p class="small muted" style="margin:8px 0 0">Rough numbers. Log it in Today so the check-in knows.</p></div>
   <details class="block"><summary>Prices and protein per riyal</summary><p class="small muted">Estimates. Update them from كيو and everything recalculates. Higher protein per riyal is better value.</p><div class="tablewrap"><table class="t"><tr><th>Item</th><th class="num">SAR</th><th class="num">g protein / SAR</th></tr>`;
   const ranked = foodsList(S).map(f => ({ f, ppr: f.m[1] * (f.pack / f.b) / (priceOf(S, f.id) || 1) })).sort((a, b) => b.ppr - a.ppr);
-  for (const { f, ppr } of ranked) out += `<tr><td>${esc(f.n)}<br><span class="small muted">${esc(f.pl)}</span></td><td class="num"><input class="price" inputmode="decimal" data-price="${f.id}" value="${priceOf(S, f.id)}" aria-label="${esc(f.n)} price"></td><td class="num">${ppr.toFixed(1)}</td></tr>`;
+  for (const { f, ppr } of ranked) out += `<tr><td>${esc(f.n)}${arName(f)}<br><span class="small muted">${esc(f.pl)}</span></td><td class="num"><input class="price" inputmode="decimal" data-price="${f.id}" value="${priceOf(S, f.id)}" aria-label="${esc(f.n)} price"></td><td class="num">${ppr.toFixed(1)}</td></tr>`;
   out += `</table></div></details>
   <h2>Supplements</h2><div class="block"><p><strong>Creatine monohydrate, 5 g a day,</strong> every day including weekends, any time. Plain monohydrate only.</p><p><strong>Whey:</strong> only if its protein per riyal beats your foods in the table above.</p><p style="margin:0"><strong>Skip:</strong> fat burners, BCAAs, test boosters, "shred" products. Coffee before the gym is fine.</p></div>`;
   return out;
@@ -145,7 +149,7 @@ export function vRecipe() {
   <p class="muted">${KIND[r.kind === 'batch' && isBig(r) ? 'big' : r.kind]}${r.time ? ` · ${r.time} min` : ''}${r.tool ? ` · ${esc(r.tool)}` : ''}${r.keeps ? ` · keeps ${r.keeps} days` : ''}</p>
   <div class="targets"><div class="target"><b>${Math.round(tt.kcal)}</b><span>kcal / portion</span></div><div class="target"><b>${Math.round(tt.p)} g</b><span>protein</span></div><div class="target"><b>${tt.cost.toFixed(1)}</b><span>SAR</span></div></div>
   <div class="block"><div class="row between"><h3 style="margin:0">Ingredients</h3><div class="seg" style="width:160px">${[1, 2, 3].map(k => `<button data-act="portions" data-n="${k}" class="${k === n ? 'on' : ''}">×${k}</button>`).join('')}</div></div>
-  <ul class="ing">${per.map(([id, q, flex]) => `<li>${esc(itemLabel(S, id, Math.round(q * n * 10) / 10))}${flex ? ' <span class="small muted">· scaled to your calories</span>' : ''}</li>`).join('')}</ul>
+  <ul class="ing">${per.map(([id, q, flex]) => `<li>${esc(itemLabel(S, id, Math.round(q * n * 10) / 10))}${arName(foodsList(S).find(f => f.id === id), true)}${flex ? ' <span class="small muted">· scaled to your calories</span>' : ''}</li>`).join('')}</ul>
   <p class="small muted" style="margin:0">Plus spices: salt, pepper and what the steps mention. Medium spice at most.</p></div>
   <div class="block"><h3>Steps</h3><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></div>
   ${isHidden(S, r.id) ? `<button class="btn block-w" data-act="hiderecipe" data-id="${r.id}">Put it back in the rotation</button>` : `<button class="btn block-w ghost" data-act="hiderecipe" data-id="${r.id}">Don't plan this dish again</button><p class="small muted" style="text-align:center">It gets swapped out of your plan from today on. Undo any time in Food > Recipes.</p>`}`;
